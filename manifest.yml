@@ -1,0 +1,47 @@
+---
+language: logstash
+default_versions:
+- name: logstash
+  version: '5.6.x'
+- name: openjdk
+  version: '1.8.0'
+dependency_deprecation_dates:
+- version_line: '5.5.x'
+  name: logstash
+  date: 2017-02-16
+  link: https://golang.org/doc/devel/release.html
+dependencies:
+- name: logstash
+  version: 5.5.3
+  uri: https://github.com/elastic/logstash/archive/v5.5.3.tar.gz
+  md5: 9e133cf33083732aa4f6370307b86a31
+  cf_stacks:
+  - cflinuxfs2
+- name: logstash
+  version: 5.6.1
+  uri: https://artifacts.elastic.co/downloads/logstash/logstash-5.6.1.tar.gz
+  md5: 02ca0f5446ee3328b3fd4deb69ccaa3a
+  cf_stacks:
+  - cflinuxfs2
+- name: openjdk
+  version: 1.8.0
+  uri: https://java-buildpack.cloudfoundry.org/openjdk-jdk/trusty/x86_64/openjdk-1.8.0_91.tar.gz
+  md5: 85dc1b71d0991d3efb63727a9d98b4ed
+  cf_stacks:
+  - cflinuxfs2
+include_files:
+- CHANGELOG
+- CONTRIBUTING.md
+- LICENSE
+- LICENSE-DEPENDENCIES
+- LICENSE.godep
+- NOTICE
+- README.md
+- VERSION
+- bin/compile
+- bin/detect
+- bin/finalize
+- bin/release
+- bin/supply
+- manifest.yml
+pre_package: scripts/build.sh
