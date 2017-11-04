@@ -25,22 +25,6 @@ PATH=$PATH:$GOROOT/bin
 	return fmt.Sprintf(contents, goRoot)
 }
 
-func JDKProfileD(javaHome string) string {
-	contents := `export JAVA_HOME=$DEPS_DIR/%s
-PATH=$PATH:$JAVA_HOME/bin
-`
-
-	return fmt.Sprintf(contents, javaHome)
-}
-
-func LogstashProfileD(logstashHome string) string {
-	contents := `export LOGSTASH_HOME=$DEPS_DIR/%s
-PATH=$PATH:$LOGSTASH_HOME/bin
-`
-
-	return fmt.Sprintf(contents, logstashHome)
-}
-
 func ZZGoPathScript(mainPackageName string) string {
 	contents := `export GOPATH=$HOME
 cd $GOPATH/src/%s

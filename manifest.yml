@@ -4,7 +4,15 @@ default_versions:
 - name: logstash
   version: '5.6.x'
 - name: openjdk
-  version: '1.8.0'
+  version: '1.8.x'
+- name: curator
+  version: '5.0.x'
+- name: dockerize
+  version: '0.4.x'
+- name: jq
+  version: '1.5'
+- name: ofelia
+  version: '0.2.x'
 dependency_deprecation_dates:
 - version_line: '5.5.x'
   name: logstash
@@ -19,14 +27,38 @@ dependencies:
   - cflinuxfs2
 - name: logstash
   version: 5.6.1
-  uri: https://artifacts.elastic.co/downloads/logstash/logstash-5.6.1.tar.gz
-  md5: 02ca0f5446ee3328b3fd4deb69ccaa3a
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-5.6.1.tar.gz
+  md5: 234a4ebec934775332f98899fb7d8aa5
   cf_stacks:
   - cflinuxfs2
 - name: openjdk
   version: 1.8.0
-  uri: https://java-buildpack.cloudfoundry.org/openjdk-jdk/trusty/x86_64/openjdk-1.8.0_91.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/openjdk-1.8.0_91.tar.gz
   md5: 85dc1b71d0991d3efb63727a9d98b4ed
+  cf_stacks:
+  - cflinuxfs2
+- name: curator
+  version: 5.0.4
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/curator-5.0.4-python-3.6.1.tar.gz
+  md5: 49583029d2e49c452db54562a91ba642
+  cf_stacks:
+  - cflinuxfs2
+- name: dockerize
+  version: 0.4.0
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/dockerize-0.4.0.tar.gz
+  md5: f2fc9bbea11b8f412a5a7068ac4bcf78
+  cf_stacks:
+  - cflinuxfs2
+- name: jq
+  version: 1.5
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/jq-1.5.tar.gz
+  md5: 97a00818977323761e96d37277d6368c
+  cf_stacks:
+  - cflinuxfs2
+- name: ofelia
+  version: 0.2.2
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/ofelia_0.2.2.tar.gz
+  md5: f53babe2e6eb91b62113a813ef1c16d8
   cf_stacks:
   - cflinuxfs2
 include_files:

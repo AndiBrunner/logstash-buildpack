@@ -2,15 +2,13 @@ package supply
 
 import (
 	"errors"
-	"fmt"
-	"golang"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
-
 	"github.com/cloudfoundry/libbuildpack"
 	"os/exec"
+	"fmt"
+	"regexp"
 )
 
 type Manifest interface {
@@ -34,10 +32,21 @@ type Supplier struct {
 	Stager     Stager
 	Manifest   Manifest
 	Log        *libbuildpack.Logger
-	VendorTool string
-	LogstashVersion  string
-	OpenJDKVersion  string
-	Godep      golang.Godep
+	Dockerize Dependency
+	Jq Dependency
+	Ofelia Dependency
+	Curator Dependency
+	Logstash Dependency
+	OpenJdk  Dependency
+}
+
+type Dependency struct{
+	Name string
+	Version string
+	VersionParts int
+	EnvVersion string
+	RuntimeLocation string
+	StagingLocation string
 }
 
 func Run(gs *Supplier) error {
@@ -47,73 +56,179 @@ func Run(gs *Supplier) error {
 		return err
 	}
 
-	if err := gs.SelectOpenJDKVersion(); err != nil {
-		gs.Log.Error("Unable to determine Java version to install: %s", err.Error())
+	//Install Dockerize
+	gs.Dockerize = Dependency{Name: "dockerize", VersionParts: 3, EnvVersion: "DOCKERIZE_VERSION"}
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.Dockerize); err != nil {
+		gs.Log.Error("Unable to determine the Dockerize version to install: %s", err.Error())
+		return err
+	}else{
+		gs.Dockerize.Version = parsedVersion
+		gs.Dockerize.RuntimeLocation = gs.EvalRuntimeLocation(gs.Dockerize)
+		gs.Dockerize.StagingLocation = gs.EvalStagingLocation(gs.Dockerize)
+	}
+
+	if err := gs.InstallDependency(gs.Dockerize); err != nil {
+		gs.Log.Error("Error installing Dockerize: %s", err.Error())
 		return err
 	}
 
-	if err := gs.InstallOpenJDK(); err != nil {
+	content := TrimLines(fmt.Sprintf(`
+				export DOCKERIZE_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$DOCKERIZE_HOME
+				`, gs.Dockerize.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.Dockerize, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for Dockerize: %s", err.Error())
+		return err
+	}
+
+	//Install JQ
+	gs.Jq = Dependency{Name: "jq", VersionParts: 3, EnvVersion: "JQ_VERSION"}
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.Jq); err != nil {
+		gs.Log.Error("Unable to determine the Jq version to install: %s", err.Error())
+		return err
+	}else{
+		gs.Jq.Version = parsedVersion
+		gs.Jq.RuntimeLocation = gs.EvalRuntimeLocation(gs.Jq)
+		gs.Jq.StagingLocation = gs.EvalStagingLocation(gs.Jq)
+	}
+
+	if err := gs.InstallDependency(gs.Jq); err != nil {
+		gs.Log.Error("Error installing Jq: %s", err.Error())
+		return err
+	}
+
+	content = TrimLines(fmt.Sprintf(`
+				export JQ_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$JQ_HOME
+				`, gs.Jq.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.Jq, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for Jq: %s", err.Error())
+		return err
+	}
+
+	//Install Ofelia
+	gs.Ofelia = Dependency{Name: "ofelia", VersionParts: 3, EnvVersion: "OFELIA_VERSION"}
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.Ofelia); err != nil {
+		gs.Log.Error("Unable to determine the Ofelia version to install: %s", err.Error())
+		return err
+	}else{
+		gs.Ofelia.Version = parsedVersion
+		gs.Ofelia.RuntimeLocation = gs.EvalRuntimeLocation(gs.Ofelia)
+		gs.Ofelia.StagingLocation = gs.EvalStagingLocation(gs.Ofelia)
+	}
+
+	if err := gs.InstallDependency(gs.Ofelia); err != nil {
+		gs.Log.Error("Error installing Ofelia: %s", err.Error())
+		return err
+	}
+
+	content = TrimLines(fmt.Sprintf(`
+				export OFELIA_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$OFELIA_HOME
+				`, gs.Ofelia.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.Ofelia, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for Ofelia: %s", err.Error())
+		return err
+	}
+
+	//Install Curator
+	gs.Curator = Dependency{Name: "curator", VersionParts: 3, EnvVersion: "CURATOR_VERSION"}
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.Curator); err != nil {
+		gs.Log.Error("Unable to determine the Curator version to install: %s", err.Error())
+		return err
+	}else{
+		gs.Curator.Version = parsedVersion
+		gs.Curator.RuntimeLocation = gs.EvalRuntimeLocation(gs.Curator)
+		gs.Curator.StagingLocation = gs.EvalStagingLocation(gs.Curator)
+	}
+
+	if err := gs.InstallDependency(gs.Curator); err != nil {
+		gs.Log.Error("Error installing Curator: %s", err.Error())
+		return err
+	}
+
+	content = TrimLines(fmt.Sprintf(`
+				export CURATOR_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$CURATOR_HOME
+				`, gs.Curator.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.Curator, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for Curator: %s", err.Error())
+		return err
+	}
+
+	//Install OpenJDK
+	gs.OpenJdk = Dependency{Name: "openjdk", VersionParts: 3, EnvVersion: "OPENJDK_VERSION"}
+
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.OpenJdk); err != nil {
+		gs.Log.Error("Unable to determine the Java version to install: %s", err.Error())
+		return err
+	}else{
+		gs.OpenJdk.Version = parsedVersion
+		gs.OpenJdk.RuntimeLocation = gs.EvalRuntimeLocation(gs.OpenJdk)
+		gs.OpenJdk.StagingLocation = gs.EvalStagingLocation(gs.OpenJdk)
+	}
+
+	if err := gs.InstallDependency(gs.OpenJdk); err != nil {
 		gs.Log.Error("Error installing Java: %s", err.Error())
 		return err
 	}
 
-	if err := gs.WriteJDKToProfileD(); err != nil {
+	content = TrimLines(fmt.Sprintf(`
+				export JAVA_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$JAVA_HOME/bin
+				`, gs.OpenJdk.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.OpenJdk, content); err != nil {
 		gs.Log.Error("Error writing profile.d script for JDK: %s", err.Error())
 		return err
 	}
 
 
-	if err := gs.SelectLogstashVersion(); err != nil {
-		gs.Log.Error("Unable to determine Logstash version to install: %s", err.Error())
+	//Install Logstash
+	gs.Logstash = Dependency{Name: "logstash", VersionParts: 3, EnvVersion: "LOGSTASH_VERSION"}
+
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.Logstash); err != nil {
+		gs.Log.Error("Unable to determine the Logstash version to install: %s", err.Error())
 		return err
+	}else{
+		gs.Logstash.Version = parsedVersion
+		gs.Logstash.RuntimeLocation = gs.EvalRuntimeLocation(gs.Logstash)
+		gs.Logstash.StagingLocation = gs.EvalStagingLocation(gs.Logstash)
 	}
 
-	if err := gs.InstallLogstash(); err != nil {
+	if err := gs.InstallDependency(gs.Logstash); err != nil {
 		gs.Log.Error("Error installing Logstash: %s", err.Error())
 		return err
 	}
 
-	if err := gs.WriteLogstashToProfileD(); err != nil {
-		gs.Log.Error("Error writing profile.d script for logstash: %s", err.Error())
+	content = TrimLines(fmt.Sprintf(`
+				export LOGSTASH_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$LOGSTASH_HOME/bin
+				`, gs.Logstash.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.Logstash, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for Logstash: %s", err.Error())
 		return err
 	}
 
-	if err := gs.WriteConfigYml(); err != nil {
+
+	//WriteConfigYml
+	config := map[string]string{
+		"LogstashVersion":  gs.Logstash.Version,
+	}
+
+	if err:= gs.Stager.WriteConfigYml(config); err != nil {
 		gs.Log.Error("Error writing config.yml: %s", err.Error())
 		return err
 	}
-	/*	if err := gs.SelectVendorTool(); err != nil {
-			gs.Log.Error("Unable to select Go vendor tool: %s", err.Error())
-			return err
-		}
 
-		if err := gs.InstallVendorTools(); err != nil {
-			gs.Log.Error("Unable to install vendor tools", err.Error())
-			return err
-		}
-
-		if err := gs.SelectGoVersion(); err != nil {
-			gs.Log.Error("Unable to determine Go version to install: %s", err.Error())
-			return err
-		}
-
-		if err := gs.InstallGo(); err != nil {
-			gs.Log.Error("Error installing Go: %s", err.Error())
-			return err
-		}
-
-		if err := gs.WriteGoRootToProfileD(); err != nil {
-			gs.Log.Error("Error writing GOROOT to profile.d: %s", err.Error())
-			return err
-		}
-
-		if err := gs.WriteConfigYml(); err != nil {
-			gs.Log.Error("Error writing config.yml: %s", err.Error())
-			return err
-		}
-	*/
 	return nil
 }
+
 
 func (gs *Supplier) SourceLogstashFile() error {
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
@@ -137,249 +252,46 @@ func (gs *Supplier) SourceLogstashFile() error {
 }
 
 
-func (gs *Supplier) SelectOpenJDKVersion() error {
-	openJDKVersion := os.Getenv("OPENJDK_VERSION")
 
 
-	if openJDKVersion == "" {
-		defaultOpenJDK, err := gs.Manifest.DefaultVersion("openjdk")
+// GENERAL
+
+func TrimLines(text string) string{
+	re := regexp.MustCompile("(?m)^(\\s)*")
+	return re.ReplaceAllString(text, "")
+}
+
+func (gs *Supplier) WriteDependencyProfileD(dependency Dependency, content string) error {
+
+	if err := gs.Stager.WriteProfileD(dependency.Name + ".sh", content ); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (gs *Supplier) SelectDependencyVersion(dependency Dependency) (string, error) {
+
+	dependencyVersion := os.Getenv(dependency.EnvVersion)
+
+	if dependencyVersion == "" {
+		defaultDependencyVersion, err := gs.Manifest.DefaultVersion(dependency.Name)
 		if err != nil {
-			return err
+			return "", err
 		}
-		openJDKVersion = fmt.Sprintf("openjdk%s", defaultOpenJDK.Version)
+		dependencyVersion = defaultDependencyVersion.Version
 	}
 
-
-	parsed, err := gs.parseOpenJDKVersion(openJDKVersion)
-	if err != nil {
-		return err
-	}
-
-	gs.OpenJDKVersion = parsed
-	return nil
+	return gs.parseDependencyVersion(dependency,dependencyVersion )
 }
 
-func (gs *Supplier) InstallOpenJDK() error {
-	openJDKInstallDir := filepath.Join(gs.Stager.DepDir(), "openjdk-"+gs.OpenJDKVersion)
+func (gs *Supplier) parseDependencyVersion(dependency Dependency, partialDependencyVersion string) (string, error) {
+	existingVersions := gs.Manifest.AllDependencyVersions(dependency.Name)
 
-	dep := libbuildpack.Dependency{Name: "openjdk", Version: gs.OpenJDKVersion}
-	if err := gs.Manifest.InstallDependency(dep, openJDKInstallDir); err != nil {
-		return err
+	if len(strings.Split(partialDependencyVersion, ".")) < dependency.VersionParts {
+		partialDependencyVersion += ".x"
 	}
 
-/*	if err := gs.Stager.AddBinDependencyLink(filepath.Join(openJDKInstallDir), "openjdk"); err != nil {
-		return err
-	}
-*/
-	return nil
-}
-
-
-func (gs *Supplier) SelectLogstashVersion() error {
-	logstashVersion := os.Getenv("LOGSTASH_VERSION")
-
-
-	if logstashVersion == "" {
-		defaultLogstash, err := gs.Manifest.DefaultVersion("logstash")
-		if err != nil {
-			return err
-		}
-		logstashVersion = fmt.Sprintf("logstash%s", defaultLogstash.Version)
-	}
-
-
-	parsed, err := gs.parseLogstashVersion(logstashVersion)
-	if err != nil {
-		return err
-	}
-
-	gs.LogstashVersion = parsed
-	return nil
-}
-
-func (gs *Supplier) InstallLogstash() error {
-	logstashInstallDir := filepath.Join(gs.Stager.DepDir(), "logstash-"+gs.LogstashVersion)
-
-	dep := libbuildpack.Dependency{Name: "logstash", Version: gs.LogstashVersion}
-	if err := gs.Manifest.InstallDependency(dep, logstashInstallDir); err != nil {
-		return err
-	}
-
-/*	if err := gs.Stager.AddBinDependencyLink(filepath.Join(logstashInstallDir, "logstash-"+gs.LogstashVersion, "bin", "logstash"), "logstash"); err != nil {
-		return err
-	}
-*/
-	return nil
-}
-
-func (gs *Supplier) SelectVendorTool() error {
-	godepsJSONFile := filepath.Join(gs.Stager.BuildDir(), "Godeps", "Godeps.json")
-
-	godirFile := filepath.Join(gs.Stager.BuildDir(), ".godir")
-	isGodir, err := libbuildpack.FileExists(godirFile)
-	if err != nil {
-		return err
-	}
-	if isGodir {
-		gs.Log.Error(golang.GodirError())
-		return errors.New(".godir deprecated")
-	}
-
-	isGoPath, err := gs.isGoPath()
-	if err != nil {
-		return err
-	}
-	if isGoPath {
-		gs.Log.Error(golang.GBError())
-		return errors.New("gb unsupported")
-	}
-
-	isGodep, err := libbuildpack.FileExists(godepsJSONFile)
-	if err != nil {
-		return err
-	}
-	if isGodep {
-		gs.Log.BeginStep("Checking Godeps/Godeps.json file")
-
-		err = libbuildpack.NewJSON().Load(filepath.Join(gs.Stager.BuildDir(), "Godeps", "Godeps.json"), &gs.Godep)
-		if err != nil {
-			gs.Log.Error("Bad Godeps/Godeps.json file")
-			return err
-		}
-
-		gs.Godep.WorkspaceExists, err = libbuildpack.FileExists(filepath.Join(gs.Stager.BuildDir(), "Godeps", "_workspace", "src"))
-		if err != nil {
-			return err
-		}
-
-		gs.VendorTool = "godep"
-		return nil
-	}
-
-	glideFile := filepath.Join(gs.Stager.BuildDir(), "glide.yaml")
-	isGlide, err := libbuildpack.FileExists(glideFile)
-	if err != nil {
-		return err
-	}
-	if isGlide {
-		gs.VendorTool = "glide"
-		return nil
-	}
-
-	gs.VendorTool = "go_nativevendoring"
-	return nil
-}
-
-
-
-func (gs *Supplier) WriteJDKToProfileD() error {
-	javaRuntimeLocation := filepath.Join(gs.Stager.DepsIdx(), "openjdk-"+gs.OpenJDKVersion)
-	if err := gs.Stager.WriteProfileD("javahome.sh", golang.JDKProfileD(javaRuntimeLocation)); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (gs *Supplier) WriteLogstashToProfileD() error {
-	logstashRuntimeLocation := filepath.Join(gs.Stager.DepsIdx(), "logstash-"+gs.LogstashVersion, "logstash-"+gs.LogstashVersion)
-	if err := gs.Stager.WriteProfileD("logstash.sh", golang.LogstashProfileD(logstashRuntimeLocation)); err != nil {
-		return err
-	}
-	return nil
-}
-
-/*
-func (gs *Supplier) WriteGoRootToProfileD() error {
-	goRuntimeLocation := filepath.Join("$DEPS_DIR", gs.Stager.DepsIdx(), "go"+gs.GoVersion, "go")
-	if err := gs.Stager.WriteProfileD("goroot.sh", golang.GoRootScript(goRuntimeLocation)); err != nil {
-		return err
-	}
-	return nil
-}
-*/
-
-func (gs *Supplier) InstallVendorTools() error {
-	tools := []string{"godep", "glide"}
-
-	for _, tool := range tools {
-		installDir := filepath.Join(gs.Stager.DepDir(), tool)
-		if err := gs.Manifest.InstallOnlyVersion(tool, installDir); err != nil {
-			return err
-		}
-
-		if err := gs.Stager.AddBinDependencyLink(filepath.Join(installDir, "bin", tool), tool); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-/*
-func (gs *Supplier) SelectGoVersion() error {
-	goVersion := os.Getenv("GOVERSION")
-
-	if gs.VendorTool == "godep" {
-		if goVersion != "" {
-			gs.Log.Warning(golang.GoVersionOverride(goVersion))
-		} else {
-			goVersion = gs.Godep.GoVersion
-		}
-	} else {
-		if goVersion == "" {
-			defaultGo, err := gs.Manifest.DefaultVersion("go")
-			if err != nil {
-				return err
-			}
-			goVersion = fmt.Sprintf("go%s", defaultGo.Version)
-		}
-	}
-
-	parsed, err := gs.parseGoVersion(goVersion)
-	if err != nil {
-		return err
-	}
-
-	gs.GoVersion = parsed
-	return nil
-}
-
-
-
-
-func (gs *Supplier) InstallGo() error {
-	goInstallDir := filepath.Join(gs.Stager.DepDir(), "go"+gs.GoVersion)
-
-	dep := libbuildpack.Dependency{Name: "go", Version: gs.GoVersion}
-	if err := gs.Manifest.InstallDependency(dep, goInstallDir); err != nil {
-		return err
-	}
-
-	if err := gs.Stager.AddBinDependencyLink(filepath.Join(goInstallDir, "go", "bin", "go"), "go"); err != nil {
-		return err
-	}
-
-	return gs.Stager.WriteEnvFile("GOROOT", filepath.Join(goInstallDir, "go"))
-}
-*/
-func (gs *Supplier) WriteConfigYml() error {
-	config := map[string]string{
-		"LogstashVersion":  gs.LogstashVersion,
-	}
-
-	return gs.Stager.WriteConfigYml(config)
-}
-
-func (gs *Supplier) parseLogstashVersion(partialLogstashVersion string) (string, error) {
-	existingVersions := gs.Manifest.AllDependencyVersions("logstash")
-
-	if len(strings.Split(partialLogstashVersion, ".")) < 3 {
-		partialLogstashVersion += ".x"
-	}
-
-	strippedLogstashVersion := strings.TrimLeft(partialLogstashVersion, "logstash")
-
-	expandedVer, err := libbuildpack.FindMatchingVersion(strippedLogstashVersion, existingVersions)
+	expandedVer, err := libbuildpack.FindMatchingVersion(partialDependencyVersion, existingVersions)
 	if err != nil {
 		return "", err
 	}
@@ -387,62 +299,19 @@ func (gs *Supplier) parseLogstashVersion(partialLogstashVersion string) (string,
 	return expandedVer, nil
 }
 
-func (gs *Supplier) parseOpenJDKVersion(partialOpenJDKVersion string) (string, error) {
-	existingVersions := gs.Manifest.AllDependencyVersions("openjdk")
-
-	if len(strings.Split(partialOpenJDKVersion, ".")) < 3 {
-		partialOpenJDKVersion += ".x"
-	}
-
-	strippedOpenJDKVersion := strings.TrimLeft(partialOpenJDKVersion, "openjdk")
-
-	expandedVer, err := libbuildpack.FindMatchingVersion(strippedOpenJDKVersion, existingVersions)
-	if err != nil {
-		return "", err
-	}
-
-	return expandedVer, nil
+func (gs *Supplier) EvalRuntimeLocation (dependency Dependency) (string){
+	return filepath.Join(gs.Stager.DepsIdx(), dependency.Name + "-" + dependency.Version)
 }
 
-func (gs *Supplier) isGoPath() (bool, error) {
-	srcDir := filepath.Join(gs.Stager.BuildDir(), "src")
-	srcDirAtAppRoot, err := libbuildpack.FileExists(srcDir)
-	if err != nil {
-		return false, err
-	}
-
-	if !srcDirAtAppRoot {
-		return false, nil
-	}
-
-	files, err := ioutil.ReadDir(filepath.Join(gs.Stager.BuildDir(), "src"))
-	if err != nil {
-		return false, err
-	}
-
-	for _, file := range files {
-		if file.Mode().IsDir() {
-			err = filepath.Walk(filepath.Join(srcDir, file.Name()), isGoFile)
-			if err != nil {
-				if err.Error() == "found Go file" {
-					return true, nil
-				}
-
-				return false, err
-			}
-		}
-	}
-
-	return false, nil
+func (gs *Supplier) EvalStagingLocation (dependency Dependency) (string){
+	return filepath.Join(gs.Stager.DepDir(), dependency.Name + "-" + dependency.Version)
 }
 
-func isGoFile(path string, info os.FileInfo, err error) error {
-	if err != nil {
+func (gs *Supplier) InstallDependency(dependency Dependency) error {
+
+	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version }
+	if err := gs.Manifest.InstallDependency(dep, dependency.StagingLocation); err != nil {
 		return err
-	}
-
-	if strings.HasSuffix(path, ".go") {
-		return errors.New("found Go file")
 	}
 
 	return nil
