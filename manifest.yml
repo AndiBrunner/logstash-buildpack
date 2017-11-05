@@ -13,6 +13,8 @@ default_versions:
   version: '1.5'
 - name: ofelia
   version: '0.2.x'
+- name: memory-calculator
+  version: '3.9.x'
 dependency_deprecation_dates:
 - version_line: '5.5.x'
   name: logstash
@@ -61,6 +63,13 @@ dependencies:
   md5: f53babe2e6eb91b62113a813ef1c16d8
   cf_stacks:
   - cflinuxfs2
+- name: memory-calculator
+  version: 3.9.0
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/java-buildpack-memory-calculator-3.9.0.tar.gz
+  md5: d5202293519f34352f9a8f6a29313173
+  cf_stacks:
+  - cflinuxfs2
+
 include_files:
 - CHANGELOG
 - CONTRIBUTING.md

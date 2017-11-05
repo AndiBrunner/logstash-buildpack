@@ -1,1 +1,18 @@
-LOGSTASH_VERSION=5.5.3
+---
+log-level: Info
+logstash:
+  version: 5.6.1
+  plugins:
+  - logstash-input-kafka
+  - logstash-output-kafka
+  cmd-args: ""
+  config-check: true
+  java-opts: ""
+  mem-calculation:
+    num-classes: 3000
+    num-threads: 30
+
+curator:
+  install: true
+  version: ""
+  schedule: ""
