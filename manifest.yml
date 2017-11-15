@@ -7,14 +7,12 @@ default_versions:
   version: '1.8.x'
 - name: curator
   version: '5.0.x'
-- name: dockerize
-  version: '0.4.x'
+- name: gte
+  version: '1.0.x'
 - name: jq
   version: '1.5'
 - name: ofelia
   version: '0.2.x'
-- name: memory-calculator
-  version: '3.9.x'
 dependency_deprecation_dates:
 - version_line: '5.5.x'
   name: logstash
@@ -45,10 +43,10 @@ dependencies:
   md5: 49583029d2e49c452db54562a91ba642
   cf_stacks:
   - cflinuxfs2
-- name: dockerize
-  version: 0.4.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/dockerize-0.4.0.tar.gz
-  md5: f2fc9bbea11b8f412a5a7068ac4bcf78
+- name: gte
+  version: 1.0.0
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/gte-1.0.0.tar.gz
+  md5: cb0e9b7040832d97c62fdcec3cbc4902
   cf_stacks:
   - cflinuxfs2
 - name: jq
@@ -61,12 +59,6 @@ dependencies:
   version: 0.2.2
   uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/ofelia_0.2.2.tar.gz
   md5: f53babe2e6eb91b62113a813ef1c16d8
-  cf_stacks:
-  - cflinuxfs2
-- name: memory-calculator
-  version: 3.9.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/java-buildpack-memory-calculator-3.9.0.tar.gz
-  md5: d5202293519f34352f9a8f6a29313173
   cf_stacks:
   - cflinuxfs2
 

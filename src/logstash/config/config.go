@@ -16,16 +16,18 @@ type Logstash struct {
 	Version     string   `yaml:"version"`
 	Plugins     []string `yaml:"plugins"`
 	CmdArgs     string   `yaml:"cmd-args"`
-	MemoryCalculation MemoryCalculation `yaml:"memory-calculation"`
 	JavaOpts    string   `yaml:"java-opts"`
+	ReservedMemory int `yaml:"reserved-memory"`
+	HeapPercentage int `yaml:"heap-percentage"`
 	ConfigCheck bool     `yaml:"config-check"`
-
+	ConfigTemplates []ConfigTemplate `yaml:"config-templates"`
 }
 
-type MemoryCalculation struct {
-	NumberClasses int `yaml:"number-classes"`
-	NumberThreads int `yaml:"number-threads"`
+type ConfigTemplate struct {
+	Name string `yaml:"name"`
+	ServiceInstanceName string `yaml:"service-instance-name"`
 }
+
 type Curator struct {
 	Install  bool   `yaml:"install"`
 	Version  string `yaml:"version"`

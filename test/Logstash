@@ -2,16 +2,22 @@
 log-level: Info
 logstash:
   version: 5.6.1
+  cmd-args: ""
+  java-opts: ""
+  reserved-memory: 300
+  heap-percentage: 75
+  config-check: true
+  config-templates:
+  - name: cf-input-syslog
+  - name: cf-filter-syslog
+  - name: cf-output-elasticsearch
+    service-instance-name: my-elasticsearch
+  - name: cf-output-elasticsearch
+    service-instance-name: my-elasticsearch2
+  - name: cf-output-stdout
   plugins:
   - logstash-input-kafka
   - logstash-output-kafka
-  cmd-args: ""
-  config-check: true
-  java-opts: ""
-  mem-calculation:
-    num-classes: 3000
-    num-threads: 30
-
 curator:
   install: true
   version: ""

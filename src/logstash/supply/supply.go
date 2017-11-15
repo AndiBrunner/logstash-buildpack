@@ -8,13 +8,13 @@ import (
 	"github.com/cloudfoundry/libbuildpack"
 
 	"fmt"
-	"regexp"
 	conf "logstash/config"
 	"io/ioutil"
 
 	"os/exec"
 
 	"log"
+	"logstash/util"
 )
 
 type Manifest interface {
@@ -38,7 +38,8 @@ type Supplier struct {
 	Stager     Stager
 	Manifest   Manifest
 	Log        *libbuildpack.Logger
-	Dockerize Dependency
+	BuildpackConfig Dependency
+	GTE Dependency
 	Jq Dependency
 	Ofelia Dependency
 	Curator Dependency
@@ -72,13 +73,8 @@ func Run(gs *Supplier) error {
 		return err
 	}
 
-	//Install Memory Calculator
-	if err := gs.InstallMemoryCalculator(); err != nil {
-		return err
-	}
-
-	//Install Dockerize
-	if err := gs.InstallDockerize(); err != nil {
+	//Install GTE
+	if err := gs.InstallGTE(); err != nil {
 		return err
 	}
 
@@ -146,7 +142,7 @@ func Run(gs *Supplier) error {
 
 func (gs *Supplier) EvalLogstashFile() error {
 	gs.LogstashConfig = conf.LogstashConfig{
-		Logstash: conf.Logstash{ConfigCheck: true, MemoryCalculation: conf.MemoryCalculation{NumberClasses: 30000, NumberThreads: 30}},
+		Logstash: conf.Logstash{ConfigCheck: true, ReservedMemory: 300, HeapPercentage: 90},
 		Curator:	conf.Curator{Install: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
@@ -180,64 +176,32 @@ func (gs *Supplier) EvalEnvironment() error {
 	return nil
 }
 
-func (gs *Supplier) InstallDockerize() error {
-	gs.Dockerize = Dependency{Name: "dockerize", VersionParts: 3, ConfigVersion: ""}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.Dockerize); err != nil {
-		gs.Log.Error("Unable to determine the Dockerize version to install: %s", err.Error())
+func (gs *Supplier) InstallGTE() error {
+	gs.GTE = Dependency{Name: "gte", VersionParts: 3, ConfigVersion: ""}
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.GTE); err != nil {
+		gs.Log.Error("Unable to determine the GTE version to install: %s", err.Error())
 		return err
 	}else{
-		gs.Dockerize.Version = parsedVersion
-		gs.Dockerize.RuntimeLocation = gs.EvalRuntimeLocation(gs.Dockerize)
-		gs.Dockerize.StagingLocation = gs.EvalStagingLocation(gs.Dockerize)
+		gs.GTE.Version = parsedVersion
+		gs.GTE.RuntimeLocation = gs.EvalRuntimeLocation(gs.GTE)
+		gs.GTE.StagingLocation = gs.EvalStagingLocation(gs.GTE)
 	}
 
-	if err := gs.InstallDependency(gs.Dockerize); err != nil {
-		gs.Log.Error("Error installing Dockerize: %s", err.Error())
+	if err := gs.InstallDependency(gs.GTE); err != nil {
+		gs.Log.Error("Error installing GTE: %s", err.Error())
 		return err
 	}
 
-	content := TrimLines(fmt.Sprintf(`
-				export DOCKERIZE_HOME=$DEPS_DIR/%s
-				PATH=$PATH:$DOCKERIZE_HOME
-				`, gs.Dockerize.RuntimeLocation))
+	content := util.TrimLines(fmt.Sprintf(`
+				export GTE_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$GTE_HOME
+				`, gs.GTE.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.Dockerize, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for Dockerize: %s", err.Error())
+	if err := gs.WriteDependencyProfileD(gs.GTE, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for GTE: %s", err.Error())
 		return err
 	}
 	return nil
-}
-
-func (gs *Supplier) InstallMemoryCalculator() error {
-	gs.MemoryCalculator = Dependency{Name: "memory-calculator", VersionParts: 3, ConfigVersion: ""}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.MemoryCalculator); err != nil {
-		gs.Log.Error("Unable to determine the Memory-Calculator version to install: %s", err.Error())
-		return err
-	}else{
-		gs.MemoryCalculator.Version = parsedVersion
-		gs.MemoryCalculator.RuntimeLocation = gs.EvalRuntimeLocation(gs.MemoryCalculator)
-		gs.MemoryCalculator.StagingLocation = gs.EvalStagingLocation(gs.MemoryCalculator)
-	}
-
-	if err := gs.InstallDependency(gs.MemoryCalculator); err != nil {
-		gs.Log.Error("Error installing Memory-Calculator: %s", err.Error())
-		return err
-	}
-
-	content := TrimLines(fmt.Sprintf(`
-				export MEMORY_CALCULATOR_HOME=$DEPS_DIR/%s
-				PATH=$PATH:$MEMORY_CALCULATOR_HOME
-				`, gs.MemoryCalculator.RuntimeLocation))
-
-	if err := gs.WriteDependencyProfileD(gs.MemoryCalculator, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for Memory-Calculator: %s", err.Error())
-		return err
-	}
-	return nil
-
-	// ps -fe | grep /0/[l]ogstash | awk '{print $2}' --> PID
-	// ps -feT | grep /0/[l]ogstash | wc -l --> number of threads
-	//  ./jmap -histo <PID> | wc -l --> number of classes
 }
 
 func (gs *Supplier) InstallJq() error {
@@ -256,7 +220,7 @@ func (gs *Supplier) InstallJq() error {
 		return err
 	}
 
-	content := TrimLines(fmt.Sprintf(`
+	content := util.TrimLines(fmt.Sprintf(`
 				export JQ_HOME=$DEPS_DIR/%s
 				PATH=$PATH:$JQ_HOME
 				`, gs.Jq.RuntimeLocation))
@@ -284,7 +248,7 @@ func (gs *Supplier) InstallCurator() error {
 		return err
 	}
 
-	content := TrimLines(fmt.Sprintf(`
+	content := util.TrimLines(fmt.Sprintf(`
 				export CURATOR_HOME=$DEPS_DIR/%s
 				PATH=$PATH:$CURATOR_HOME
 				`, gs.Curator.RuntimeLocation))
@@ -312,7 +276,7 @@ func (gs *Supplier) InstallOfelia() error {
 		return err
 	}
 
-	content := TrimLines(fmt.Sprintf(`
+	content := util.TrimLines(fmt.Sprintf(`
 				export OFELIA_HOME=$DEPS_DIR/%s
 				PATH=$PATH:$OFELIA_HOME
 				`, gs.Ofelia.RuntimeLocation))
@@ -341,7 +305,7 @@ func (gs *Supplier) InstallOpenJdk() error {
 		return err
 	}
 
-	content := TrimLines(fmt.Sprintf(`
+	content := util.TrimLines(fmt.Sprintf(`
 				export JAVA_HOME=$DEPS_DIR/%s
 				PATH=$PATH:$JAVA_HOME/bin
 				`, gs.OpenJdk.RuntimeLocation))
@@ -370,10 +334,17 @@ func (gs *Supplier) InstallLogstash() error {
 		return err
 	}
 
-	content := TrimLines(fmt.Sprintf(`
-				export LOGSTASH_HOME=$DEPS_DIR/%s
-				PATH=$PATH:$LOGSTASH_HOME/bin
-				`, gs.Logstash.RuntimeLocation))
+	content := util.TrimLines(fmt.Sprintf(`
+			export LS_BP_RESERVED_MEMORY=%d
+			export LS_BP_HEAP_PERCENTAGE=%d
+			export LS_BP_JAVA_OPTS=%s
+			export LOGSTASH_HOME=$DEPS_DIR/%s
+			PATH=$PATH:$LOGSTASH_HOME/bin
+			`,
+		gs.LogstashConfig.Logstash.ReservedMemory,
+		gs.LogstashConfig.Logstash.HeapPercentage,
+		gs.LogstashConfig.Logstash.JavaOpts,
+		gs.Logstash.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Logstash, content); err != nil {
 		gs.Log.Error("Error writing profile.d script for Logstash: %s", err.Error())
@@ -383,12 +354,18 @@ func (gs *Supplier) InstallLogstash() error {
 }
 
 func (gs *Supplier) PrepareStatingEnvironment() error {
-	mem := gs.App.Limits.Mem / 10 * 8
-	os.Setenv("JAVA_HOME", gs.OpenJdk.StagingLocation)
-	os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem ,mem ))
+	vmOptions := gs.LogstashConfig.Logstash.JavaOpts
 
-	gs.Log.Info("JAVA_HOME", gs.OpenJdk.StagingLocation)
-	gs.Log.Info("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem ,mem ))
+	if vmOptions != "" {
+		mem := (gs.App.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
+		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
+	}else{
+		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("%s", vmOptions) )
+	}
+
+	os.Setenv("JAVA_HOME", gs.OpenJdk.StagingLocation)
+	gs.Log.Info("JAVA_HOME %s", gs.OpenJdk.StagingLocation)
+	gs.Log.Info("LS_JAVA_OPTS %s", os.Getenv("LS_JVA_OPTS"))
 	return nil
 }
 
@@ -415,42 +392,27 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		}
 		gs.Log.Info("Logstash plugin %s installed", gs.LogstashConfig.Logstash.Plugins[i])
 	}
+
+	cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list")
+	err := cmd.Run()
+	if err != nil{
+		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
+		return  err
+	}
+	gs.Log.Info("LS_JAVA_OPTS=%s", os.Getenv("LS_JAVA_OPTS"))
+	gs.Log.Info("JAVA_OPTS=%s", os.Getenv("JAVA_OPTS"))
 	return nil
 }
 
 func (gs *Supplier) CheckLogstash() error {
 
-	localPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
-
-	for i := 0; i < len(gs.LogstashConfig.Logstash.Plugins); i++{
-
-		localPlugin := localPlugins[gs.LogstashConfig.Logstash.Plugins[i]]
-
-		pluginToInstall := gs.LogstashConfig.Logstash.Plugins[i]
-
-		if localPlugin != "" {
-			pluginToInstall = gs.Stager.BuildDir() + "/plugins/" + localPlugin
-		}
-		cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "install", pluginToInstall)
-		gs.Log.Info(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation))
-
-		err := cmd.Run()
-		if err != nil{
-			gs.Log.Error("Error installing Logstash plugin %s: %s", gs.LogstashConfig.Logstash.Plugins[i], err.Error())
-			return  err
-		}
-		gs.Log.Info("Logstash plugin %s installed", gs.LogstashConfig.Logstash.Plugins[i])
-	}
 	return nil
 }
 
 
 // GENERAL
 
-func TrimLines(text string) string{
-	re := regexp.MustCompile("(?m)^(\\s)*")
-	return re.ReplaceAllString(text, "")
-}
+
 
 func (gs *Supplier) WriteDependencyProfileD(dependency Dependency, content string) error {
 

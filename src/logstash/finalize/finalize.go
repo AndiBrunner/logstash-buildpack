@@ -10,11 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	"encoding/json"
-
 	"github.com/Masterminds/semver"
 	"github.com/cloudfoundry/libbuildpack"
+	"logstash/util"
 )
 
 type Command interface {
@@ -123,6 +122,7 @@ func Run(gf *Finalizer) error {
 
 	return nil
 }
+
 
 func (gf *Finalizer) SetMainPackageName() error {
 	switch gf.VendorTool {
@@ -374,9 +374,46 @@ func (gf *Finalizer) CompileApp() error {
 }
 
 func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
-	err := ioutil.WriteFile(filepath.Join(tempDir, "buildpack-release-step.yml"), []byte(golang.ReleaseYAML("$LOGSTASH_HOME/bin/logstash -e 'input { stdin { } } output { stdout {} }'")), 0644)
+/*
+	mem := (gs.App.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
+	os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
+
+
+			export LS_BP_RESERVED_MEMORY=%s
+			export LS_BP_HEAP_PERCENTAGE=%s
+			export LS_BP_JAVA_OPTS=%s
+			export LOGSTASH_HOME=$DEPS_DIR/%s
+			PATH=$PATH:$LOGSTASH_HOME/bin
+*/
+	//create start script
+	content := util.TrimLines(fmt.Sprintf(`
+				echo "run.sh"
+				MemLimits="$(echo ${VCAP_APPLICATION} | $JQ_HOME/jq '.limits.mem')"
+				echo "--> Container memory limit = ${MemLimits}m"
+
+				if [ -n "$LS_BP_JAVA_OPTS" ] || [ -z "$MemLimits" ] || [ -z "$LS_BP_RESERVED_MEMORY"  ] || [ -z "$LS_BP_HEAP_PERCENTAGE" ] ; then
+					export LS_JAVA_OPTS=$LS_BP_JAVA_OPTS
+					echo "--> Using JAVA_OPTS=\"${LS_JAVA_OPTS}\" (user defined)"
+				else
+					HeapSize=$(( ($MemLimits - $LS_BP_RESERVED_MEMORY) / 100 * $LS_BP_HEAP_PERCENTAGE ))
+					export LS_JAVA_OPTS="-Xmx${HeapSize}m -Xms${HeapSize}m"
+					echo "--> Using JAVA_OPTS=\"${LS_JAVA_OPTS}\" (calculated)"
+				fi
+				echo "--> starting Logstash"
+				$GTE_HOME/gte conf.d:logstash.conf.d
+				$LOGSTASH_HOME/bin/logstash -f logstash.conf.d -
+				`))
+
+	err := ioutil.WriteFile(filepath.Join(gf.Stager.BuildDir(), "bin/run.sh"), []byte(content), 0755)
 	if err != nil {
-		gf.Log.Error("Unable to write relase yml: %s", err.Error())
+		gf.Log.Error("Unable to write start script: %s", err.Error())
+		return err
+	}
+
+	//create release yml
+	err = ioutil.WriteFile(filepath.Join(tempDir, "buildpack-release-step.yml"), []byte(golang.ReleaseYAML("bin/run.sh")), 0644)
+	if err != nil {
+		gf.Log.Error("Unable to write release yml: %s", err.Error())
 		return err
 	}
 /*
