@@ -1,20 +1,19 @@
 package supply
 
 import (
-
+	"github.com/cloudfoundry/libbuildpack"
 	"os"
 	"path/filepath"
 	"strings"
-	"github.com/cloudfoundry/libbuildpack"
 
 	"fmt"
-	conf "logstash/config"
 	"io/ioutil"
+	conf "logstash/config"
 
-	"os/exec"
-
+	"errors"
 	"log"
 	"logstash/util"
+	"os/exec"
 )
 
 type Manifest interface {
@@ -35,35 +34,48 @@ type Stager interface {
 }
 
 type Supplier struct {
-	Stager     Stager
-	Manifest   Manifest
-	Log        *libbuildpack.Logger
-	BuildpackConfig Dependency
-	GTE Dependency
-	Jq Dependency
-	Ofelia Dependency
-	Curator Dependency
-	Logstash Dependency
-	OpenJdk  Dependency
-	MemoryCalculator Dependency
-	LogstashConfig conf.LogstashConfig
-	App conf.App
+	Stager             Stager
+	Manifest           Manifest
+	Log                *libbuildpack.Logger
+	GTE                Dependency
+	Jq                 Dependency
+	Ofelia             Dependency
+	Curator            Dependency
+	Logstash           Dependency
+	OpenJdk            Dependency
+	LogstashConfig     conf.LogstashConfig
+	TemplatesConfig    conf.TemplatesConfig
+	VcapApp            conf.VcapApp
+	VcapServices       conf.VcapServices
+	CustomFilesExists  bool
+	TemplatesToInstall []conf.Template
 }
 
-type Dependency struct{
-	Name string
-	Version string
-	VersionParts int
-	ConfigVersion string
+type Dependency struct {
+	Name            string
+	Version         string
+	VersionParts    int
+	ConfigVersion   string
 	RuntimeLocation string
 	StagingLocation string
 }
 
 func Run(gs *Supplier) error {
 
-	//Eval Logstash file
+	//Eval Logstash file and prepare dir structure
 	if err := gs.EvalLogstashFile(); err != nil {
 		gs.Log.Error("Unable to evaluate Logstash file: %s", err.Error())
+		return err
+	}
+
+	if err := gs.PrepareAppDirStructure(); err != nil {
+		gs.Log.Error("Unable to prepare directory structure for the app: %s", err.Error())
+		return err
+	}
+
+	//Eval Templates file
+	if err := gs.EvalTemplatesFile(); err != nil {
+		gs.Log.Error("Unable to evaluate Templates file: %s", err.Error())
 		return err
 	}
 
@@ -73,44 +85,36 @@ func Run(gs *Supplier) error {
 		return err
 	}
 
-	//Install GTE
+	//Install Dependencies
 	if err := gs.InstallGTE(); err != nil {
 		return err
 	}
-
-	//Install JQ
 	if err := gs.InstallJq(); err != nil {
 		return err
 	}
-
-	if gs.LogstashConfig.Curator.Install{
-
-		//Install Ofelia
+	if gs.LogstashConfig.Curator.Install {
 		if err := gs.InstallOfelia(); err != nil {
 			return err
 		}
-
-		//Install Curator
 		if err := gs.InstallCurator(); err != nil {
 			return err
 		}
-
 	}
-
-
-	//Install OpenJDK
 	if err := gs.InstallOpenJdk(); err != nil {
 		return err
 	}
-
-	//Install Logstash
 	if err := gs.InstallLogstash(); err != nil {
 		return err
 	}
 
-
 	//Prepare Stating Environment
 	if err := gs.PrepareStatingEnvironment(); err != nil {
+		return err
+	}
+
+	//Install templates
+	if err := gs.InstallTemplates(); err != nil {
+		gs.Log.Error("Unable to install template file: %s", err.Error())
 		return err
 	}
 
@@ -119,7 +123,7 @@ func Run(gs *Supplier) error {
 		return err
 	}
 
-	if gs.LogstashConfig.Logstash.ConfigCheck{
+	if gs.LogstashConfig.Logstash.ConfigCheck {
 		//Install Logstash Plugins
 		if err := gs.CheckLogstash(); err != nil {
 			return err
@@ -128,10 +132,10 @@ func Run(gs *Supplier) error {
 	}
 	//WriteConfigYml
 	config := map[string]string{
-		"LogstashVersion":  gs.Logstash.Version,
+		"LogstashVersion": gs.Logstash.Version,
 	}
 
-	if err:= gs.Stager.WriteConfigYml(config); err != nil {
+	if err := gs.Stager.WriteConfigYml(config); err != nil {
 		gs.Log.Error("Error writing config.yml: %s", err.Error())
 		return err
 	}
@@ -139,11 +143,18 @@ func Run(gs *Supplier) error {
 	return nil
 }
 
+func (gs *Supplier) BuildpackDir() string {
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	return filepath.Dir(filepath.Dir(ex))
+}
 
 func (gs *Supplier) EvalLogstashFile() error {
 	gs.LogstashConfig = conf.LogstashConfig{
 		Logstash: conf.Logstash{ConfigCheck: true, ReservedMemory: 300, HeapPercentage: 90},
-		Curator:	conf.Curator{Install: false}}
+		Curator:  conf.Curator{Install: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
 
@@ -155,7 +166,6 @@ func (gs *Supplier) EvalLogstashFile() error {
 		return err
 	}
 
-
 	//ToDo Eval values
 	if gs.LogstashConfig.Curator.Schedule == "" {
 		gs.LogstashConfig.Curator.Schedule = "@daily"
@@ -164,13 +174,78 @@ func (gs *Supplier) EvalLogstashFile() error {
 	return nil
 }
 
-func (gs *Supplier) EvalEnvironment() error {
-	gs.App = conf.App{}
+func (gs *Supplier) PrepareAppDirStructure() error {
 
-	data := os.Getenv("VCAP_APPLICATION")
-
-	if err := gs.App.Parse([]byte(data)); err != nil {
+	//create dir configs if not exists
+	dir := filepath.Join(gs.Stager.BuildDir(), "configs")
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
 		return err
+	}
+
+	//create dir grok-patterns  if not exists
+	dir = filepath.Join(gs.Stager.BuildDir(), "grok-patterns")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir mappings  if not exists
+	dir = filepath.Join(gs.Stager.BuildDir(), "mappings")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir curator.d  if not exists
+	dir = filepath.Join(gs.Stager.BuildDir(), "curator.d")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (gs *Supplier) EvalTemplatesFile() error {
+	gs.TemplatesConfig = conf.TemplatesConfig{}
+
+	templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/templates.yml")
+
+	data, err := ioutil.ReadFile(templateFile)
+	if err != nil {
+		return err
+	}
+	if err := gs.TemplatesConfig.Parse(data); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (gs *Supplier) EvalEnvironment() error {
+
+	//get VCAP_APPLICATIOM
+	gs.VcapApp = conf.VcapApp{}
+	dataApp := os.Getenv("VCAP_APPLICATION")
+	if err := gs.VcapApp.Parse([]byte(dataApp)); err != nil {
+		return err
+	}
+
+	// get VCAP_SERVICES
+	gs.VcapServices = conf.VcapServices{}
+	dataServices := os.Getenv("VCAP_SERVICES")
+	if err := gs.VcapServices.Parse([]byte(dataServices)); err != nil {
+		return err
+	}
+
+	//check if files (also directories) exist in the application's "configs" directory
+	files, err := ioutil.ReadDir(filepath.Join(gs.Stager.BuildDir(), "configs"))
+	if err != nil {
+		return err
+	}
+	if len(files) > 0 {
+		gs.CustomFilesExists = true
 	}
 
 	return nil
@@ -181,7 +256,7 @@ func (gs *Supplier) InstallGTE() error {
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.GTE); err != nil {
 		gs.Log.Error("Unable to determine the GTE version to install: %s", err.Error())
 		return err
-	}else{
+	} else {
 		gs.GTE.Version = parsedVersion
 		gs.GTE.RuntimeLocation = gs.EvalRuntimeLocation(gs.GTE)
 		gs.GTE.StagingLocation = gs.EvalStagingLocation(gs.GTE)
@@ -237,7 +312,7 @@ func (gs *Supplier) InstallCurator() error {
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Curator); err != nil {
 		gs.Log.Error("Unable to determine the Curator version to install: %s", err.Error())
 		return err
-	}else{
+	} else {
 		gs.Curator.Version = parsedVersion
 		gs.Curator.RuntimeLocation = gs.EvalRuntimeLocation(gs.Curator)
 		gs.Curator.StagingLocation = gs.EvalStagingLocation(gs.Curator)
@@ -265,7 +340,7 @@ func (gs *Supplier) InstallOfelia() error {
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Ofelia); err != nil {
 		gs.Log.Error("Unable to determine the Ofelia version to install: %s", err.Error())
 		return err
-	}else{
+	} else {
 		gs.Ofelia.Version = parsedVersion
 		gs.Ofelia.RuntimeLocation = gs.EvalRuntimeLocation(gs.Ofelia)
 		gs.Ofelia.StagingLocation = gs.EvalStagingLocation(gs.Ofelia)
@@ -294,7 +369,7 @@ func (gs *Supplier) InstallOpenJdk() error {
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.OpenJdk); err != nil {
 		gs.Log.Error("Unable to determine the Java version to install: %s", err.Error())
 		return err
-	}else{
+	} else {
 		gs.OpenJdk.Version = parsedVersion
 		gs.OpenJdk.RuntimeLocation = gs.EvalRuntimeLocation(gs.OpenJdk)
 		gs.OpenJdk.StagingLocation = gs.EvalStagingLocation(gs.OpenJdk)
@@ -323,7 +398,7 @@ func (gs *Supplier) InstallLogstash() error {
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Logstash); err != nil {
 		gs.Log.Error("Unable to determine the Logstash version to install: %s", err.Error())
 		return err
-	}else{
+	} else {
 		gs.Logstash.Version = parsedVersion
 		gs.Logstash.RuntimeLocation = gs.EvalRuntimeLocation(gs.Logstash)
 		gs.Logstash.StagingLocation = gs.EvalStagingLocation(gs.Logstash)
@@ -357,10 +432,10 @@ func (gs *Supplier) PrepareStatingEnvironment() error {
 	vmOptions := gs.LogstashConfig.Logstash.JavaOpts
 
 	if vmOptions != "" {
-		mem := (gs.App.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
+		mem := (gs.VcapApp.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
 		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
-	}else{
-		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("%s", vmOptions) )
+	} else {
+		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("%s", vmOptions))
 	}
 
 	os.Setenv("JAVA_HOME", gs.OpenJdk.StagingLocation)
@@ -369,35 +444,123 @@ func (gs *Supplier) PrepareStatingEnvironment() error {
 	return nil
 }
 
+func (gs *Supplier) InstallTemplates() error {
+
+	gs.TemplatesToInstall = []conf.Template{}
+
+	if !gs.CustomFilesExists && len(gs.LogstashConfig.Logstash.ConfigTemplates) == 0 {
+		// install all default templates
+
+		//copy default templates to config
+		for _, t := range gs.TemplatesConfig.Templates {
+
+			if t.IsDefault {
+
+				if len(t.Tags) > 0 {
+					servicesWithTag := gs.VcapServices.WithTags(t.Tags)
+
+					if len(servicesWithTag) == 0 {
+						return errors.New("no service found for template")
+					} else if len(servicesWithTag) > 1 {
+						return errors.New("more than one service found for template")
+					} else {
+						ti := t
+						ti.ServiceInstanceName = servicesWithTag[0].Name
+						gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
+					}
+				} else {
+					ti := t
+					ti.ServiceInstanceName = ""
+					gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
+				}
+			}
+		}
+
+	} else {
+		//only install explicitly defined templates, if any
+		//check them all
+
+		for _, ct := range gs.LogstashConfig.Logstash.ConfigTemplates {
+			found := false
+			templateName := strings.Trim(ct.Name, " ")
+			if len(templateName) == 0 {
+				gs.Log.Warning("No valid name defined for template in Logstash file")
+				continue
+			}
+			for _, t := range gs.TemplatesConfig.Templates {
+				if templateName == t.Name {
+					serviceInstanceName := strings.Trim(ct.ServiceInstanceName, " ")
+					if len(serviceInstanceName) == 0 && len(t.Tags) > 0 {
+						gs.Log.Error("No service instance name defined for template %s in Logstash file", templateName)
+						return errors.New("no service instance name defined for template in Logstash file")
+					}
+
+					ti := t
+					if len(serviceInstanceName) > 0 && len(t.Tags) == 0 {
+						gs.Log.Warning("Service instance name '%s' defined for template %s in Logstash file will not be used", serviceInstanceName, templateName)
+					} else {
+						ti.ServiceInstanceName = serviceInstanceName
+					}
+					gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
+
+					found = true
+					break
+				}
+			}
+			if !found {
+				gs.Log.Warning("Template %s defined in Logstash file does not exist", templateName)
+			}
+		}
+	}
+
+	//copy templates --> configs
+	for _, ti := range gs.TemplatesToInstall {
+
+		os.Setenv("SERVICE_INSTANCE_NAME", ti.ServiceInstanceName)
+
+		templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/", ti.Name+".conf")
+		destFile := filepath.Join(gs.Stager.BuildDir(), "configs", ti.Name+".conf")
+
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", fmt.Sprintf("%s:%s", templateFile, destFile)).Run()
+		if err != nil {
+			gs.Log.Error("Error processing template %s: %s", ti.Name, err.Error())
+			return err
+		}
+
+	}
+
+	return nil
+}
+
 func (gs *Supplier) InstallLogstashPlugins() error {
 
 	localPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
-    for i := 0; i < len(gs.LogstashConfig.Logstash.Plugins); i++{
+	for i := 0; i < len(gs.LogstashConfig.Logstash.Plugins); i++ {
 
-    	localPlugin := localPlugins[gs.LogstashConfig.Logstash.Plugins[i]]
+		localPlugin := localPlugins[gs.LogstashConfig.Logstash.Plugins[i]]
 
-    	pluginToInstall := gs.LogstashConfig.Logstash.Plugins[i]
+		pluginToInstall := gs.LogstashConfig.Logstash.Plugins[i]
 
-    	if localPlugin != "" {
+		if localPlugin != "" {
 			pluginToInstall = gs.Stager.BuildDir() + "/plugins/" + localPlugin
 		}
 		cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "install", pluginToInstall)
 		gs.Log.Info(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation))
 
 		err := cmd.Run()
-		if err != nil{
+		if err != nil {
 			gs.Log.Error("Error installing Logstash plugin %s: %s", gs.LogstashConfig.Logstash.Plugins[i], err.Error())
-			return  err
+			return err
 		}
 		gs.Log.Info("Logstash plugin %s installed", gs.LogstashConfig.Logstash.Plugins[i])
 	}
 
 	cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list")
 	err := cmd.Run()
-	if err != nil{
+	if err != nil {
 		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
-		return  err
+		return err
 	}
 	gs.Log.Info("LS_JAVA_OPTS=%s", os.Getenv("LS_JAVA_OPTS"))
 	gs.Log.Info("JAVA_OPTS=%s", os.Getenv("JAVA_OPTS"))
@@ -409,14 +572,11 @@ func (gs *Supplier) CheckLogstash() error {
 	return nil
 }
 
-
 // GENERAL
-
-
 
 func (gs *Supplier) WriteDependencyProfileD(dependency Dependency, content string) error {
 
-	if err := gs.Stager.WriteProfileD(dependency.Name + ".sh", content ); err != nil {
+	if err := gs.Stager.WriteProfileD(dependency.Name+".sh", content); err != nil {
 		return err
 	}
 	return nil
@@ -434,7 +594,7 @@ func (gs *Supplier) SelectDependencyVersion(dependency Dependency) (string, erro
 		dependencyVersion = defaultDependencyVersion.Version
 	}
 
-	return gs.parseDependencyVersion(dependency,dependencyVersion )
+	return gs.parseDependencyVersion(dependency, dependencyVersion)
 }
 
 func (gs *Supplier) parseDependencyVersion(dependency Dependency, partialDependencyVersion string) (string, error) {
@@ -452,17 +612,17 @@ func (gs *Supplier) parseDependencyVersion(dependency Dependency, partialDepende
 	return expandedVer, nil
 }
 
-func (gs *Supplier) EvalRuntimeLocation (dependency Dependency) (string){
-	return filepath.Join(gs.Stager.DepsIdx(), dependency.Name + "-" + dependency.Version)
+func (gs *Supplier) EvalRuntimeLocation(dependency Dependency) string {
+	return filepath.Join(gs.Stager.DepsIdx(), dependency.Name+"-"+dependency.Version)
 }
 
-func (gs *Supplier) EvalStagingLocation (dependency Dependency) (string){
-	return filepath.Join(gs.Stager.DepDir(), dependency.Name + "-" + dependency.Version)
+func (gs *Supplier) EvalStagingLocation(dependency Dependency) string {
+	return filepath.Join(gs.Stager.DepDir(), dependency.Name+"-"+dependency.Version)
 }
 
 func (gs *Supplier) InstallDependency(dependency Dependency) error {
 
-	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version }
+	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version}
 	if err := gs.Manifest.InstallDependency(dep, dependency.StagingLocation); err != nil {
 		return err
 	}
@@ -488,7 +648,7 @@ func readAllFiles(filePath string) error {
 	}
 	defer file.Close()
 
-	list,_ := file.Readdirnames(0) // 0 to read all files and folders
+	list, _ := file.Readdirnames(0) // 0 to read all files and folders
 	for _, name := range list {
 		fmt.Println(name)
 	}
@@ -496,8 +656,7 @@ func readAllFiles(filePath string) error {
 	return nil
 }
 
-
-func (gs *Supplier)ReadLocalPlugins(filePath string) (map[string]string, error) {
+func (gs *Supplier) ReadLocalPlugins(filePath string) (map[string]string, error) {
 
 	var localPlugins map[string]string
 	localPlugins = make(map[string]string)
@@ -509,7 +668,7 @@ func (gs *Supplier)ReadLocalPlugins(filePath string) (map[string]string, error) 
 	}
 	defer file.Close()
 
-	list,_ := file.Readdirnames(0) // 0 to read all files and folders
+	list, _ := file.Readdirnames(0) // 0 to read all files and folders
 	for _, name := range list {
 		pluginParts := strings.Split(name, "-")
 

@@ -13,18 +13,7 @@ default_versions:
   version: '1.5'
 - name: ofelia
   version: '0.2.x'
-dependency_deprecation_dates:
-- version_line: '5.5.x'
-  name: logstash
-  date: 2017-02-16
-  link: https://golang.org/doc/devel/release.html
 dependencies:
-- name: logstash
-  version: 5.5.3
-  uri: https://github.com/elastic/logstash/archive/v5.5.3.tar.gz
-  md5: 9e133cf33083732aa4f6370307b86a31
-  cf_stacks:
-  - cflinuxfs2
 - name: logstash
   version: 5.6.1
   uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-5.6.1.tar.gz
@@ -71,6 +60,11 @@ include_files:
 - NOTICE
 - README.md
 - VERSION
+- defaults/templates/cf-filter-syslog.conf
+- defaults/templates/cf-input-syslog.conf
+- defaults/templates/cf-output-elasticsearch.conf
+- defaults/templates/cf-output-stdout.conf
+- defaults/templates/templates.yml
 - bin/compile
 - bin/detect
 - bin/finalize

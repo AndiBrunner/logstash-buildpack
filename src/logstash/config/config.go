@@ -4,8 +4,37 @@ import (
 	"errors"
 	"fmt"
 	"gopkg.in/yaml.v2"
+	"encoding/json"
+	"strings"
 )
 
+// [BP]/defaults/templates/templates.yml
+type TemplatesConfig struct {
+	Templates []Template `yaml:"templates"`
+}
+
+type Template struct {
+	Name string `yaml:"name"`
+	Type string `yaml:"type"`
+	IsDefault bool `yaml:"is-default"`
+	IsFallback bool `yaml:"is-fallback"`
+	Tags []string  `yaml:"tags"`
+	Groks []string `yaml:"groks"`
+	Mappings []string `yaml:"mappings"`
+	ServiceInstanceName string `yaml:"-"`
+}
+
+func (c *TemplatesConfig) Parse(data []byte) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprintf("Yaml parsing error: %s", r))
+		}
+	}()
+
+	return yaml.Unmarshal(data, c)
+}
+
+// [APP]Logstash
 type LogstashConfig struct {
 	LogLevel string   `yaml:"log-level"`
 	Logstash Logstash `yaml:"logstash"`
@@ -44,25 +73,13 @@ func (c *LogstashConfig) Parse(data []byte) (err error) {
 	return yaml.Unmarshal(data, c)
 }
 
+// VCAP_APPLICATION
 // An App holds information about the current app running on Cloud Foundry
-type App struct {
-	ID              string   `json:"-"`                // DEPRECATED id of the instance
-	InstanceID      string   `json:"instance_id"`      // id of the instance
+type VcapApp struct {
 	AppID           string   `json:"application_id"`   // id of the application
-	Index           int      `json:"instance_index"`   // index of the app
-	Name            string   `json:"name"`             // name of the app
-	Host            string   `json:"host"`             // host of the app
-	Port            int      `json:"port"`             // port of the app
-	Version         string   `json:"version"`          // version of the app
+	Name            string   `json:"application_name"`             // name of the app
 	ApplicationURIs []string `json:"application_uris"` // application uri of the app
-	SpaceID         string   `json:"space_id"`         // id of the space
-	SpaceName       string   `json:"space_name"`       // name of the space
-	Home            string   // root folder for the deployed app
-	MemoryLimit     string   // maximum amount of memory that each instance of the application can consume
-	WorkingDir      string   // present working directory, where the buildpack that processed the application ran
-	TempDir         string   // directory location where temporary and staging files are stored
-	User            string   // user account under which the DEA runs
-//	Services        Services // services bound to the app
+	Version         string   `json:"application_version"`          // version of the app
 	CFAPI           string   `json:"cf_api"` // URL for the Cloud Foundry API endpoint
 	Limits          *Limits  `json:"limits"` // limits imposed on this process
 }
@@ -73,12 +90,55 @@ type Limits struct {
 	Mem  int `json:"mem"`  // memory limit
 }
 
-func (c *App) Parse(data []byte) (err error) {
+func (c *VcapApp) Parse(data []byte) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = errors.New(fmt.Sprintf("Yaml parsing error: %s", r))
+			err = errors.New(fmt.Sprintf("Json parsing error: %s", r))
 		}
 	}()
 
-	return yaml.Unmarshal(data, c)
+	return json.Unmarshal(data, c)
+}
+
+
+type VcapServices map[string][]VcapService
+
+type VcapService struct {
+	Name        string                 `json:"name"` // name of the service
+	Label       string                 `json:"label"` // label of the service
+	Tags        []string               `json:"tags"` // tags for the service
+	Plan        string                 `json:"plan"` // plan of the service
+	Credentials map[string]interface{} `json:"credentials"` // credentials for the service
+}
+
+func (s *VcapServices) WithTags(tags []string) ([]VcapService) {
+	result := []VcapService{}
+	for _, services := range *s {
+		for i := range services {
+			service := services[i]
+			for _, st := range service.Tags {
+				found := false
+				for _, t := range tags {
+					if strings.EqualFold(t, st) {
+						found = true
+						result = append(result, service)
+						break
+					}
+				}
+				if found { break}
+			}
+		}
+	}
+
+	return result
+}
+
+func (c *VcapServices) Parse(data []byte) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New(fmt.Sprintf("Json parsing error: %s", r))
+		}
+	}()
+
+	return json.Unmarshal(data, c)
 }
