@@ -2,18 +2,18 @@ package finalize
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Masterminds/semver"
+	"github.com/cloudfoundry/libbuildpack"
 	"golang"
 	"io"
 	"io/ioutil"
+	"logstash/util"
 	"os"
 	"path/filepath"
 	"strings"
-	"encoding/json"
-	"github.com/Masterminds/semver"
-	"github.com/cloudfoundry/libbuildpack"
-	"logstash/util"
 )
 
 type Command interface {
@@ -74,47 +74,47 @@ func NewFinalizer(stager Stager, command Command, logger *libbuildpack.Logger) (
 }
 
 func Run(gf *Finalizer) error {
-//	var err error
+	//	var err error
 
-/*	if err := gf.SetMainPackageName(); err != nil {
-		gf.Log.Error("Unable to determine import path: %s", err.Error())
-		return err
-	}
-*/
+	/*	if err := gf.SetMainPackageName(); err != nil {
+			gf.Log.Error("Unable to determine import path: %s", err.Error())
+			return err
+		}
+	*/
 	if err := os.MkdirAll(filepath.Join(gf.Stager.BuildDir(), "bin"), 0755); err != nil {
 		gf.Log.Error("Unable to create <build-dir>/bin: %s", err.Error())
 		return err
 	}
 
 	/*
-	if err := gf.SetupGoPath(); err != nil {
-		gf.Log.Error("Unable to setup Go path: %s", err.Error())
-		return err
-	}
-
-	if err := gf.HandleVendorExperiment(); err != nil {
-		gf.Log.Error("Invalid vendor config: %s", err.Error())
-		return err
-	}
-
-	if gf.VendorTool == "glide" {
-		if err := gf.RunGlideInstall(); err != nil {
-			gf.Log.Error("Error running 'glide install': %s", err.Error())
+		if err := gf.SetupGoPath(); err != nil {
+			gf.Log.Error("Unable to setup Go path: %s", err.Error())
 			return err
 		}
-	}
 
-	gf.SetBuildFlags()
-	if err = gf.SetInstallPackages(); err != nil {
-		gf.Log.Error("Unable to determine packages to install: %s", err.Error())
-		return err
-	}
+		if err := gf.HandleVendorExperiment(); err != nil {
+			gf.Log.Error("Invalid vendor config: %s", err.Error())
+			return err
+		}
 
-	if err := gf.CompileApp(); err != nil {
-		gf.Log.Error("Unable to compile application: %s", err.Error())
-		return err
-	}
-*/
+		if gf.VendorTool == "glide" {
+			if err := gf.RunGlideInstall(); err != nil {
+				gf.Log.Error("Error running 'glide install': %s", err.Error())
+				return err
+			}
+		}
+
+		gf.SetBuildFlags()
+		if err = gf.SetInstallPackages(); err != nil {
+			gf.Log.Error("Unable to determine packages to install: %s", err.Error())
+			return err
+		}
+
+		if err := gf.CompileApp(); err != nil {
+			gf.Log.Error("Unable to compile application: %s", err.Error())
+			return err
+		}
+	*/
 	if err := gf.CreateStartupEnvironment("/tmp"); err != nil {
 		gf.Log.Error("Unable to create startup scripts: %s", err.Error())
 		return err
@@ -122,7 +122,6 @@ func Run(gf *Finalizer) error {
 
 	return nil
 }
-
 
 func (gf *Finalizer) SetMainPackageName() error {
 	switch gf.VendorTool {
@@ -374,17 +373,17 @@ func (gf *Finalizer) CompileApp() error {
 }
 
 func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
-/*
-	mem := (gs.App.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
-	os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
+	/*
+		mem := (gs.App.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
+		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
 
 
-			export LS_BP_RESERVED_MEMORY=%s
-			export LS_BP_HEAP_PERCENTAGE=%s
-			export LS_BP_JAVA_OPTS=%s
-			export LOGSTASH_HOME=$DEPS_DIR/%s
-			PATH=$PATH:$LOGSTASH_HOME/bin
-*/
+				export LS_BP_RESERVED_MEMORY=%s
+				export LS_BP_HEAP_PERCENTAGE=%s
+				export LS_BP_JAVA_OPTS=%s
+				export LOGSTASH_HOME=$DEPS_DIR/%s
+				PATH=$PATH:$LOGSTASH_HOME/bin
+	*/
 	//create start script
 	content := util.TrimLines(fmt.Sprintf(`
 				echo "run.sh"
@@ -400,8 +399,8 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 					echo "--> Using JAVA_OPTS=\"${LS_JAVA_OPTS}\" (calculated)"
 				fi
 				echo "--> starting Logstash"
-				$GTE_HOME/gte conf.d:logstash.conf.d
-				$LOGSTASH_HOME/bin/logstash -f logstash.conf.d -
+				$GTE_HOME/gte configs:logstash.conf.d
+				$LOGSTASH_HOME/bin/logstash -f logstash.conf.d $LG_CMD_ARGS
 				`))
 
 	err := ioutil.WriteFile(filepath.Join(gf.Stager.BuildDir(), "bin/run.sh"), []byte(content), 0755)
@@ -416,29 +415,29 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 		gf.Log.Error("Unable to write release yml: %s", err.Error())
 		return err
 	}
-/*
-	if os.Getenv("GO_INSTALL_TOOLS_IN_IMAGE") == "true" {
-		goRuntimeLocation := filepath.Join("$DEPS_DIR", gf.Stager.DepsIdx(), "go"+gf.GoVersion, "go")
+	/*
+		if os.Getenv("GO_INSTALL_TOOLS_IN_IMAGE") == "true" {
+			goRuntimeLocation := filepath.Join("$DEPS_DIR", gf.Stager.DepsIdx(), "go"+gf.GoVersion, "go")
 
-		gf.Log.BeginStep("Leaving go tool chain in $GOROOT=%s", goRuntimeLocation)
+			gf.Log.BeginStep("Leaving go tool chain in $GOROOT=%s", goRuntimeLocation)
 
-	} else {
-		if err := gf.Stager.ClearDepDir(); err != nil {
-			return err
+		} else {
+			if err := gf.Stager.ClearDepDir(); err != nil {
+				return err
+			}
 		}
-	}
-*/
-/*	if os.Getenv("GO_SETUP_GOPATH_IN_IMAGE") == "true" {
-		gf.Log.BeginStep("Cleaning up $GOPATH/pkg")
-		if err := os.RemoveAll(filepath.Join(gf.GoPath, "pkg")); err != nil {
-			return err
-		}
+	*/
+	/*	if os.Getenv("GO_SETUP_GOPATH_IN_IMAGE") == "true" {
+			gf.Log.BeginStep("Cleaning up $GOPATH/pkg")
+			if err := os.RemoveAll(filepath.Join(gf.GoPath, "pkg")); err != nil {
+				return err
+			}
 
-		if err := gf.Stager.WriteProfileD("zzgopath.sh", golang.ZZGoPathScript(gf.MainPackageName)); err != nil {
-			return err
+			if err := gf.Stager.WriteProfileD("zzgopath.sh", golang.ZZGoPathScript(gf.MainPackageName)); err != nil {
+				return err
+			}
 		}
-	}
-*/
+	*/
 	return gf.Stager.WriteProfileD("go.sh", golang.GoScript())
 }
 

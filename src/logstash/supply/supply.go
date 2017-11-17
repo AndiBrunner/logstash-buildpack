@@ -103,18 +103,25 @@ func Run(gs *Supplier) error {
 	if err := gs.InstallOpenJdk(); err != nil {
 		return err
 	}
-	if err := gs.InstallLogstash(); err != nil {
-		return err
-	}
 
-	//Prepare Stating Environment
-	if err := gs.PrepareStatingEnvironment(); err != nil {
+	//Prepare Staging Environment
+	if err := gs.PrepareStagingEnvironment(); err != nil {
 		return err
 	}
 
 	//Install templates
 	if err := gs.InstallTemplates(); err != nil {
 		gs.Log.Error("Unable to install template file: %s", err.Error())
+		return err
+	}
+
+	//Install User Certificates
+	if err := gs.InstallUserCertificates(); err != nil {
+		return err
+	}
+
+	//Install Logstash
+	if err := gs.InstallLogstash(); err != nil {
 		return err
 	}
 
@@ -153,8 +160,8 @@ func (gs *Supplier) BuildpackDir() string {
 
 func (gs *Supplier) EvalLogstashFile() error {
 	gs.LogstashConfig = conf.LogstashConfig{
-		Logstash: conf.Logstash{ConfigCheck: true, ReservedMemory: 300, HeapPercentage: 90},
-		Curator:  conf.Curator{Install: false}}
+		Logstash: conf.Logstash{Set: true, ConfigCheck: true, ReservedMemory: 300, HeapPercentage: 90},
+		Curator:  conf.Curator{Set: true, Install: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
 
@@ -166,6 +173,16 @@ func (gs *Supplier) EvalLogstashFile() error {
 		return err
 	}
 
+	if !gs.LogstashConfig.Logstash.Set {
+		gs.LogstashConfig.Logstash.HeapPercentage = 90
+		gs.LogstashConfig.Logstash.ReservedMemory = 300
+		gs.LogstashConfig.Logstash.ConfigCheck = true
+	}
+	if !gs.LogstashConfig.Curator.Set {
+		gs.LogstashConfig.Curator.Install = false //not really needed but maybe we will switch to true later
+	}
+
+	gs.Log.Info("HeapPercentage %d", gs.LogstashConfig.Logstash.HeapPercentage)
 	//ToDo Eval values
 	if gs.LogstashConfig.Curator.Schedule == "" {
 		gs.LogstashConfig.Curator.Schedule = "@daily"
@@ -199,6 +216,13 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 
 	//create dir curator.d  if not exists
 	dir = filepath.Join(gs.Stager.BuildDir(), "curator.d")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir logstash.conf.d  if not exists
+	dir = filepath.Join(gs.Stager.BuildDir(), "logstash.conf.d")
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
@@ -413,12 +437,14 @@ func (gs *Supplier) InstallLogstash() error {
 			export LS_BP_RESERVED_MEMORY=%d
 			export LS_BP_HEAP_PERCENTAGE=%d
 			export LS_BP_JAVA_OPTS=%s
+			export LS_CMD_ARGS=%s
 			export LOGSTASH_HOME=$DEPS_DIR/%s
 			PATH=$PATH:$LOGSTASH_HOME/bin
 			`,
 		gs.LogstashConfig.Logstash.ReservedMemory,
 		gs.LogstashConfig.Logstash.HeapPercentage,
 		gs.LogstashConfig.Logstash.JavaOpts,
+		gs.LogstashConfig.Logstash.CmdArgs,
 		gs.Logstash.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Logstash, content); err != nil {
@@ -428,20 +454,61 @@ func (gs *Supplier) InstallLogstash() error {
 	return nil
 }
 
-func (gs *Supplier) PrepareStatingEnvironment() error {
+func (gs *Supplier) PrepareStagingEnvironment() error {
 	vmOptions := gs.LogstashConfig.Logstash.JavaOpts
 
 	if vmOptions != "" {
+		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("%s", vmOptions))
+	} else {
 		mem := (gs.VcapApp.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
 		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
-	} else {
-		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("%s", vmOptions))
 	}
 
 	os.Setenv("JAVA_HOME", gs.OpenJdk.StagingLocation)
-	gs.Log.Info("JAVA_HOME %s", gs.OpenJdk.StagingLocation)
-	gs.Log.Info("LS_JAVA_OPTS %s", os.Getenv("LS_JVA_OPTS"))
+	os.Setenv("PATH", os.Getenv("PATH")+":"+gs.OpenJdk.StagingLocation+"/bin")
+	gs.Log.Info("JAVA_HOME %s", os.Getenv("JAVA_HOME"))
+	gs.Log.Info("PATH %s", os.Getenv("PATH"))
+	gs.Log.Info("LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
 	return nil
+}
+
+func (gs *Supplier) InstallUserCertificates() error {
+
+	if len(gs.LogstashConfig.Logstash.Certificates) == 0 { // no certificates to install
+		return nil
+	}
+
+	bashCmd := []byte("#!/bin/bash\n$JAVA_HOME/bin/keytool -importcert -trustcacerts -keystore $JAVA_HOME/jre/lib/security/cacerts -storepass changeit -noprompt -alias $1 -file $2")
+
+	err := ioutil.WriteFile("/tmp/import_cert.sh", bashCmd, 755)
+	if err != nil {
+		gs.Log.Error("Error preparing the installtion of user certificates")
+		return err
+	}
+
+	localCerts, _ := gs.ReadLocalCertificates(gs.Stager.BuildDir() + "/certificates")
+
+	for i := 0; i < len(gs.LogstashConfig.Logstash.Certificates); i++ {
+
+		localCert := localCerts[gs.LogstashConfig.Logstash.Certificates[i]]
+
+		if localCert != "" {
+			gs.Log.Info(fmt.Sprintf("----> installing user certificate '%s' to TrustStore ... ", gs.LogstashConfig.Logstash.Certificates[i]))
+			certToInstall := gs.Stager.BuildDir() + "/certificates/" + localCert
+			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", "cacerts", "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Logstash.Certificates[i], "-file", certToInstall).CombinedOutput()
+			gs.Log.Info(string(out))
+			if err != nil {
+				gs.Log.Warning("Error installing user certificate '%s' to TrustStore: %s", gs.LogstashConfig.Logstash.Certificates[i], err.Error())
+			}
+		} else {
+			err := errors.New("crt file for certificate not found in directory")
+			gs.Log.Error("File %s.crt not found in directory '/certificates'", gs.LogstashConfig.Logstash.Certificates[i])
+			return err
+		}
+	}
+
+	return nil
+
 }
 
 func (gs *Supplier) InstallTemplates() error {
@@ -460,7 +527,15 @@ func (gs *Supplier) InstallTemplates() error {
 					servicesWithTag := gs.VcapServices.WithTags(t.Tags)
 
 					if len(servicesWithTag) == 0 {
-						return errors.New("no service found for template")
+
+						if gs.LogstashConfig.Logstash.EnableServiceFallback {
+							ti := t
+							ti.ServiceInstanceName = ""
+							gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
+							gs.Log.Warning("No service found for template %s, will do the fallback. Please bind a service and restage the app", ti.Name)
+						} else {
+							return errors.New("no service found for template")
+						}
 					} else if len(servicesWithTag) > 1 {
 						return errors.New("more than one service found for template")
 					} else {
@@ -533,6 +608,10 @@ func (gs *Supplier) InstallTemplates() error {
 }
 
 func (gs *Supplier) InstallLogstashPlugins() error {
+
+	if len(gs.LogstashConfig.Logstash.Plugins) == 0 { // no plugins to install
+		return nil
+	}
 
 	localPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
@@ -654,6 +733,35 @@ func readAllFiles(filePath string) error {
 	}
 
 	return nil
+}
+
+func (gs *Supplier) ReadLocalCertificates(filePath string) (map[string]string, error) {
+
+	var localCerts map[string]string
+	localCerts = make(map[string]string)
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		gs.Log.Error("failed opening certificates directory: %s", err)
+		return localCerts, err
+	}
+	defer file.Close()
+
+	list, _ := file.Readdirnames(0) // 0 to read all files and folders
+	for _, name := range list {
+
+		if strings.HasSuffix(name, ".crt") {
+			certParts := strings.Split(name, ".crt")
+
+			if len(certParts) == 2 {
+				certName := certParts[0]
+				localCerts[certName] = name
+			}
+
+		}
+	}
+
+	return localCerts, nil
 }
 
 func (gs *Supplier) ReadLocalPlugins(filePath string) (map[string]string, error) {

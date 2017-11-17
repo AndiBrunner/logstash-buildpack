@@ -18,6 +18,8 @@ logstash:
   plugins:
   - logstash-input-kafka
   - logstash-output-kafka
+  certificates:
+  - elasticsearch
 curator:
   install: true
   version: ""

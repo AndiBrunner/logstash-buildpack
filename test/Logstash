@@ -1,1 +1,4 @@
 ---
+logstash:
+  certificates:
+  - elasticsearch

@@ -1,10 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"gopkg.in/yaml.v2"
-	"encoding/json"
 	"strings"
 )
 
@@ -14,14 +14,14 @@ type TemplatesConfig struct {
 }
 
 type Template struct {
-	Name string `yaml:"name"`
-	Type string `yaml:"type"`
-	IsDefault bool `yaml:"is-default"`
-	IsFallback bool `yaml:"is-fallback"`
-	Tags []string  `yaml:"tags"`
-	Groks []string `yaml:"groks"`
-	Mappings []string `yaml:"mappings"`
-	ServiceInstanceName string `yaml:"-"`
+	Name                string   `yaml:"name"`
+	Type                string   `yaml:"type"`
+	IsDefault           bool     `yaml:"is-default"`
+	IsFallback          bool     `yaml:"is-fallback"`
+	Tags                []string `yaml:"tags"`
+	Groks               []string `yaml:"groks"`
+	Mappings            []string `yaml:"mappings"`
+	ServiceInstanceName string   `yaml:"-"`
 }
 
 func (c *TemplatesConfig) Parse(data []byte) (err error) {
@@ -42,22 +42,26 @@ type LogstashConfig struct {
 }
 
 type Logstash struct {
-	Version     string   `yaml:"version"`
-	Plugins     []string `yaml:"plugins"`
-	CmdArgs     string   `yaml:"cmd-args"`
-	JavaOpts    string   `yaml:"java-opts"`
-	ReservedMemory int `yaml:"reserved-memory"`
-	HeapPercentage int `yaml:"heap-percentage"`
-	ConfigCheck bool     `yaml:"config-check"`
-	ConfigTemplates []ConfigTemplate `yaml:"config-templates"`
+	Set                   bool             `yaml:"-"`
+	Version               string           `yaml:"version"`
+	Plugins               []string         `yaml:"plugins"`
+	Certificates          []string         `yaml:"certificates"`
+	CmdArgs               string           `yaml:"cmd-args"`
+	JavaOpts              string           `yaml:"java-opts"`
+	ReservedMemory        int              `yaml:"reserved-memory"`
+	HeapPercentage        int              `yaml:"heap-percentage"`
+	ConfigCheck           bool             `yaml:"config-check"`
+	ConfigTemplates       []ConfigTemplate `yaml:"config-templates"`
+	EnableServiceFallback bool             `yaml:"enable-service-fallback"`
 }
 
 type ConfigTemplate struct {
-	Name string `yaml:"name"`
+	Name                string `yaml:"name"`
 	ServiceInstanceName string `yaml:"service-instance-name"`
 }
 
 type Curator struct {
+	Set      bool   `yaml:"-"`
 	Install  bool   `yaml:"install"`
 	Version  string `yaml:"version"`
 	Schedule string `yaml:"schedule"`
@@ -76,12 +80,12 @@ func (c *LogstashConfig) Parse(data []byte) (err error) {
 // VCAP_APPLICATION
 // An App holds information about the current app running on Cloud Foundry
 type VcapApp struct {
-	AppID           string   `json:"application_id"`   // id of the application
-	Name            string   `json:"application_name"`             // name of the app
-	ApplicationURIs []string `json:"application_uris"` // application uri of the app
-	Version         string   `json:"application_version"`          // version of the app
-	CFAPI           string   `json:"cf_api"` // URL for the Cloud Foundry API endpoint
-	Limits          *Limits  `json:"limits"` // limits imposed on this process
+	AppID           string   `json:"application_id"`      // id of the application
+	Name            string   `json:"application_name"`    // name of the app
+	ApplicationURIs []string `json:"application_uris"`    // application uri of the app
+	Version         string   `json:"application_version"` // version of the app
+	CFAPI           string   `json:"cf_api"`              // URL for the Cloud Foundry API endpoint
+	Limits          *Limits  `json:"limits"`              // limits imposed on this process
 }
 
 type Limits struct {
@@ -100,18 +104,17 @@ func (c *VcapApp) Parse(data []byte) (err error) {
 	return json.Unmarshal(data, c)
 }
 
-
 type VcapServices map[string][]VcapService
 
 type VcapService struct {
-	Name        string                 `json:"name"` // name of the service
-	Label       string                 `json:"label"` // label of the service
-	Tags        []string               `json:"tags"` // tags for the service
-	Plan        string                 `json:"plan"` // plan of the service
+	Name        string                 `json:"name"`        // name of the service
+	Label       string                 `json:"label"`       // label of the service
+	Tags        []string               `json:"tags"`        // tags for the service
+	Plan        string                 `json:"plan"`        // plan of the service
 	Credentials map[string]interface{} `json:"credentials"` // credentials for the service
 }
 
-func (s *VcapServices) WithTags(tags []string) ([]VcapService) {
+func (s *VcapServices) WithTags(tags []string) []VcapService {
 	result := []VcapService{}
 	for _, services := range *s {
 		for i := range services {
@@ -125,7 +128,9 @@ func (s *VcapServices) WithTags(tags []string) ([]VcapService) {
 						break
 					}
 				}
-				if found { break}
+				if found {
+					break
+				}
 			}
 		}
 	}
