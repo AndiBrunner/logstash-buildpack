@@ -40,9 +40,10 @@ func main() {
 	}
 
 	gs := supply.Supplier{
-		Stager:   stager,
-		Log:      logger,
-		Manifest: manifest,
+		Stager:       stager,
+		Log:          logger,
+		Manifest:     manifest,
+		BuildpackDir: buildpackDir,
 	}
 
 	if err := supply.Run(&gs); err != nil {

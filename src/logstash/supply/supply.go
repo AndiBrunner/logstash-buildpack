@@ -37,6 +37,7 @@ type Supplier struct {
 	Stager             Stager
 	Manifest           Manifest
 	Log                *libbuildpack.Logger
+	BuildpackDir       string
 	GTE                Dependency
 	Jq                 Dependency
 	Ofelia             Dependency
@@ -150,21 +151,18 @@ func Run(gs *Supplier) error {
 	return nil
 }
 
-func (gs *Supplier) BuildpackDir() string {
-	ex, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	return filepath.Dir(filepath.Dir(ex))
+func (gs *Supplier) BPDir() string {
+
+	return gs.BuildpackDir
 }
 
 func (gs *Supplier) EvalLogstashFile() error {
 	gs.LogstashConfig = conf.LogstashConfig{
-		Set: true,
-		ConfigCheck: false,
+		Set:            true,
+		ConfigCheck:    false,
 		ReservedMemory: 300,
 		HeapPercentage: 90,
-		Curator:  conf.Curator{Set: true, Install: false}}
+		Curator:        conf.Curator{Set: true, Install: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
 
@@ -215,7 +213,7 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 func (gs *Supplier) EvalTemplatesFile() error {
 	gs.TemplatesConfig = conf.TemplatesConfig{}
 
-	templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/templates.yml")
+	templateFile := filepath.Join(gs.BPDir(), "defaults/templates/templates.yml")
 
 	data, err := ioutil.ReadFile(templateFile)
 	if err != nil {
@@ -577,7 +575,7 @@ func (gs *Supplier) InstallTemplates() error {
 	for _, ti := range gs.TemplatesToInstall {
 
 		os.Setenv("SERVICE_INSTANCE_NAME", ti.ServiceInstanceName)
-		templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/", ti.Name+".conf")
+		templateFile := filepath.Join(gs.BPDir(), "defaults/templates/", ti.Name+".conf")
 		destFile := filepath.Join(gs.Stager.DepDir(), "conf.d", ti.Name+".conf")
 
 		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateFile, destFile).Run()
