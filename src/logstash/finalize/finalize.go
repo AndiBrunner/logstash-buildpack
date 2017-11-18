@@ -91,8 +91,8 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				mkdir -p logstash.conf.d
 
 				echo "--> template processing ..."
-				$GTE_HOME/gte configs:logstash.conf.d
-				$GTE_HOME/gte $LS_ROOT/configs:logstash.conf.d
+				$GTE_HOME/gte configs logstash.conf.d
+				$GTE_HOME/gte $LS_ROOT/configs logstash.conf.d
 
 				echo "--> STARTING LOGSTASH ..."
 				if [ -n "$LG_CMD_ARGS"]; then

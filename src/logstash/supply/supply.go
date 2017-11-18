@@ -453,9 +453,11 @@ func (gs *Supplier) PrepareStagingEnvironment() error {
 	os.Setenv("PATH", os.Getenv("PATH")+":"+gs.OpenJdk.StagingLocation+"/bin")
 	os.Setenv("PORT", "8080") //dummy PORT: used by template processing for logstash check
 
-	gs.Log.Info("JAVA_HOME %s", os.Getenv("JAVA_HOME"))
-	gs.Log.Info("PATH %s", os.Getenv("PATH"))
-	gs.Log.Info("LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
+	if strings.ToLower(gs.LogstashConfig.LogLevel) == "debug" {
+		gs.Log.Info(" ### JAVA_HOME %s", os.Getenv("JAVA_HOME"))
+		gs.Log.Info(" ### PATH %s", os.Getenv("PATH"))
+		gs.Log.Info(" ### LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
+	}
 	return nil
 }
 
@@ -574,7 +576,7 @@ func (gs *Supplier) InstallTemplates() error {
 		templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/", ti.Name+".conf")
 		destFile := filepath.Join(gs.Stager.DepDir(), "configs", ti.Name+".conf")
 
-		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", fmt.Sprintf("%s:%s", templateFile, destFile)).Run()
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateFile, destFile).Run()
 		if err != nil {
 			gs.Log.Error("Error processing template %s: %s", ti.Name, err.Error())
 			return err
@@ -629,7 +631,7 @@ func (gs *Supplier) CheckLogstash() error {
 	// template processing for check
 	templateDir := filepath.Join(gs.Stager.DepDir(), "configs")
 	destDir := filepath.Join(gs.Stager.DepDir(), "logstash.conf.d")
-	err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), fmt.Sprintf("%s:%s", templateDir, destDir)).Run()
+	err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), templateDir, destDir).Run()
 	if err != nil {
 		gs.Log.Error("Error processing templates for Logstash config check: %s", err.Error())
 		return err

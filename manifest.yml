@@ -33,9 +33,9 @@ dependencies:
   cf_stacks:
   - cflinuxfs2
 - name: gte
-  version: 1.0.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/gte-1.0.0.tar.gz
-  md5: cb0e9b7040832d97c62fdcec3cbc4902
+  version: 1.0.1
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/gte-1.0.1.tar.gz
+  md5: b7822f8d0800f8e04a4791a89eea785d
   cf_stacks:
   - cflinuxfs2
 - name: jq
