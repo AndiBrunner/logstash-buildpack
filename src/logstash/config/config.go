@@ -36,13 +36,8 @@ func (c *TemplatesConfig) Parse(data []byte) (err error) {
 
 // [APP]Logstash
 type LogstashConfig struct {
-	LogLevel string   `yaml:"log-level"`
-	Logstash Logstash `yaml:"logstash"`
-	Curator  Curator  `yaml:"curator"`
-}
-
-type Logstash struct {
 	Set                   bool             `yaml:"-"`
+	LogLevel              string           `yaml:"log-level"`
 	Version               string           `yaml:"version"`
 	Plugins               []string         `yaml:"plugins"`
 	Certificates          []string         `yaml:"certificates"`
@@ -53,6 +48,7 @@ type Logstash struct {
 	ConfigCheck           bool             `yaml:"config-check"`
 	ConfigTemplates       []ConfigTemplate `yaml:"config-templates"`
 	EnableServiceFallback bool             `yaml:"enable-service-fallback"`
+	Curator               Curator          `yaml:"curator"`
 }
 
 type ConfigTemplate struct {

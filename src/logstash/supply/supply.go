@@ -25,6 +25,7 @@ type Manifest interface {
 type Stager interface {
 	AddBinDependencyLink(string, string) error
 	BuildDir() string
+	CacheDir() string
 	DepDir() string
 	DepsIdx() string
 	WriteConfigYml(interface{}) error
@@ -129,7 +130,7 @@ func Run(gs *Supplier) error {
 		return err
 	}
 
-	if gs.LogstashConfig.Logstash.ConfigCheck {
+	if gs.LogstashConfig.ConfigCheck {
 		//Install Logstash Plugins
 		if err := gs.CheckLogstash(); err != nil {
 			return err
@@ -159,7 +160,10 @@ func (gs *Supplier) BuildpackDir() string {
 
 func (gs *Supplier) EvalLogstashFile() error {
 	gs.LogstashConfig = conf.LogstashConfig{
-		Logstash: conf.Logstash{Set: true, ConfigCheck: false, ReservedMemory: 300, HeapPercentage: 90},
+		Set: true,
+		ConfigCheck: false,
+		ReservedMemory: 300,
+		HeapPercentage: 90,
 		Curator:  conf.Curator{Set: true, Install: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
@@ -172,10 +176,10 @@ func (gs *Supplier) EvalLogstashFile() error {
 		return err
 	}
 
-	if !gs.LogstashConfig.Logstash.Set {
-		gs.LogstashConfig.Logstash.HeapPercentage = 90
-		gs.LogstashConfig.Logstash.ReservedMemory = 300
-		gs.LogstashConfig.Logstash.ConfigCheck = true
+	if !gs.LogstashConfig.Set {
+		gs.LogstashConfig.HeapPercentage = 90
+		gs.LogstashConfig.ReservedMemory = 300
+		gs.LogstashConfig.ConfigCheck = true
 	}
 	if !gs.LogstashConfig.Curator.Set {
 		gs.LogstashConfig.Curator.Install = false //not really needed but maybe we will switch to true later
@@ -191,8 +195,8 @@ func (gs *Supplier) EvalLogstashFile() error {
 
 func (gs *Supplier) PrepareAppDirStructure() error {
 
-	//create dir configs in DepDir
-	dir := filepath.Join(gs.Stager.DepDir(), "configs")
+	//create dir conf.d in DepDir
+	dir := filepath.Join(gs.Stager.DepDir(), "conf.d")
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
@@ -240,8 +244,8 @@ func (gs *Supplier) EvalEnvironment() error {
 		return err
 	}
 
-	//check if files (also directories) exist in the application's "configs" directory
-	configDir := filepath.Join(gs.Stager.BuildDir(), "configs")
+	//check if files (also directories) exist in the application's "conf.d" directory
+	configDir := filepath.Join(gs.Stager.BuildDir(), "conf.d")
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
 		gs.CustomFilesExists = false
 		return nil
@@ -400,7 +404,7 @@ func (gs *Supplier) InstallOpenJdk() error {
 }
 
 func (gs *Supplier) InstallLogstash() error {
-	gs.Logstash = Dependency{Name: "logstash", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Logstash.Version}
+	gs.Logstash = Dependency{Name: "logstash", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Version}
 
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Logstash); err != nil {
 		gs.Log.Error("Unable to determine the Logstash version to install: %s", err.Error())
@@ -425,10 +429,10 @@ func (gs *Supplier) InstallLogstash() error {
 			export LOGSTASH_HOME=$DEPS_DIR/%s
 			PATH=$PATH:$LOGSTASH_HOME/bin
 			`,
-		gs.LogstashConfig.Logstash.ReservedMemory,
-		gs.LogstashConfig.Logstash.HeapPercentage,
-		gs.LogstashConfig.Logstash.JavaOpts,
-		gs.LogstashConfig.Logstash.CmdArgs,
+		gs.LogstashConfig.ReservedMemory,
+		gs.LogstashConfig.HeapPercentage,
+		gs.LogstashConfig.JavaOpts,
+		gs.LogstashConfig.CmdArgs,
 		gs.Stager.DepsIdx(),
 		gs.Logstash.RuntimeLocation))
 
@@ -440,12 +444,12 @@ func (gs *Supplier) InstallLogstash() error {
 }
 
 func (gs *Supplier) PrepareStagingEnvironment() error {
-	vmOptions := gs.LogstashConfig.Logstash.JavaOpts
+	vmOptions := gs.LogstashConfig.JavaOpts
 
 	if vmOptions != "" {
 		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("%s", vmOptions))
 	} else {
-		mem := (gs.VcapApp.Limits.Mem - gs.LogstashConfig.Logstash.ReservedMemory) / 100 * gs.LogstashConfig.Logstash.HeapPercentage
+		mem := (gs.VcapApp.Limits.Mem - gs.LogstashConfig.ReservedMemory) / 100 * gs.LogstashConfig.HeapPercentage
 		os.Setenv("LS_JAVA_OPTS", fmt.Sprintf("-Xmx%dm -Xms%dm", mem, mem))
 	}
 
@@ -463,27 +467,27 @@ func (gs *Supplier) PrepareStagingEnvironment() error {
 
 func (gs *Supplier) InstallUserCertificates() error {
 
-	if len(gs.LogstashConfig.Logstash.Certificates) == 0 { // no certificates to install
+	if len(gs.LogstashConfig.Certificates) == 0 { // no certificates to install
 		return nil
 	}
 
 	localCerts, _ := gs.ReadLocalCertificates(gs.Stager.BuildDir() + "/certificates")
 
-	for i := 0; i < len(gs.LogstashConfig.Logstash.Certificates); i++ {
+	for i := 0; i < len(gs.LogstashConfig.Certificates); i++ {
 
-		localCert := localCerts[gs.LogstashConfig.Logstash.Certificates[i]]
+		localCert := localCerts[gs.LogstashConfig.Certificates[i]]
 
 		if localCert != "" {
-			gs.Log.Info(fmt.Sprintf("----> installing user certificate '%s' to TrustStore ... ", gs.LogstashConfig.Logstash.Certificates[i]))
+			gs.Log.Info(fmt.Sprintf("----> installing user certificate '%s' to TrustStore ... ", gs.LogstashConfig.Certificates[i]))
 			certToInstall := gs.Stager.BuildDir() + "/certificates/" + localCert
-			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", "cacerts", "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Logstash.Certificates[i], "-file", certToInstall).CombinedOutput()
+			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", "cacerts", "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Certificates[i], "-file", certToInstall).CombinedOutput()
 			gs.Log.Info(string(out))
 			if err != nil {
-				gs.Log.Warning("Error installing user certificate '%s' to TrustStore: %s", gs.LogstashConfig.Logstash.Certificates[i], err.Error())
+				gs.Log.Warning("Error installing user certificate '%s' to TrustStore: %s", gs.LogstashConfig.Certificates[i], err.Error())
 			}
 		} else {
 			err := errors.New("crt file for certificate not found in directory")
-			gs.Log.Error("File %s.crt not found in directory '/certificates'", gs.LogstashConfig.Logstash.Certificates[i])
+			gs.Log.Error("File %s.crt not found in directory '/certificates'", gs.LogstashConfig.Certificates[i])
 			return err
 		}
 	}
@@ -496,7 +500,7 @@ func (gs *Supplier) InstallTemplates() error {
 
 	gs.TemplatesToInstall = []conf.Template{}
 
-	if !gs.CustomFilesExists && len(gs.LogstashConfig.Logstash.ConfigTemplates) == 0 {
+	if !gs.CustomFilesExists && len(gs.LogstashConfig.ConfigTemplates) == 0 {
 		// install all default templates
 
 		//copy default templates to config
@@ -509,7 +513,7 @@ func (gs *Supplier) InstallTemplates() error {
 
 					if len(servicesWithTag) == 0 {
 
-						if gs.LogstashConfig.Logstash.EnableServiceFallback {
+						if gs.LogstashConfig.EnableServiceFallback {
 							ti := t
 							ti.ServiceInstanceName = ""
 							gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
@@ -536,7 +540,7 @@ func (gs *Supplier) InstallTemplates() error {
 		//only install explicitly defined templates, if any
 		//check them all
 
-		for _, ct := range gs.LogstashConfig.Logstash.ConfigTemplates {
+		for _, ct := range gs.LogstashConfig.ConfigTemplates {
 			found := false
 			templateName := strings.Trim(ct.Name, " ")
 			if len(templateName) == 0 {
@@ -569,12 +573,12 @@ func (gs *Supplier) InstallTemplates() error {
 		}
 	}
 
-	//copy templates --> configs
+	//copy templates --> conf.d
 	for _, ti := range gs.TemplatesToInstall {
 
 		os.Setenv("SERVICE_INSTANCE_NAME", ti.ServiceInstanceName)
 		templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/", ti.Name+".conf")
-		destFile := filepath.Join(gs.Stager.DepDir(), "configs", ti.Name+".conf")
+		destFile := filepath.Join(gs.Stager.DepDir(), "conf.d", ti.Name+".conf")
 
 		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateFile, destFile).Run()
 		if err != nil {
@@ -589,17 +593,17 @@ func (gs *Supplier) InstallTemplates() error {
 
 func (gs *Supplier) InstallLogstashPlugins() error {
 
-	if len(gs.LogstashConfig.Logstash.Plugins) == 0 { // no plugins to install
+	if len(gs.LogstashConfig.Plugins) == 0 { // no plugins to install
 		return nil
 	}
 
 	localPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
-	for i := 0; i < len(gs.LogstashConfig.Logstash.Plugins); i++ {
+	for i := 0; i < len(gs.LogstashConfig.Plugins); i++ {
 
-		localPlugin := localPlugins[gs.LogstashConfig.Logstash.Plugins[i]]
+		localPlugin := localPlugins[gs.LogstashConfig.Plugins[i]]
 
-		pluginToInstall := gs.LogstashConfig.Logstash.Plugins[i]
+		pluginToInstall := gs.LogstashConfig.Plugins[i]
 
 		if localPlugin != "" {
 			pluginToInstall = gs.Stager.BuildDir() + "/plugins/" + localPlugin
@@ -609,10 +613,10 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 
 		err := cmd.Run()
 		if err != nil {
-			gs.Log.Error("Error installing Logstash plugin %s: %s", gs.LogstashConfig.Logstash.Plugins[i], err.Error())
+			gs.Log.Error("Error installing Logstash plugin %s: %s", gs.LogstashConfig.Plugins[i], err.Error())
 			return err
 		}
-		gs.Log.Info("Logstash plugin %s installed", gs.LogstashConfig.Logstash.Plugins[i])
+		gs.Log.Info("Logstash plugin %s installed", gs.LogstashConfig.Plugins[i])
 	}
 
 	cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list")
@@ -629,7 +633,7 @@ func (gs *Supplier) CheckLogstash() error {
 	gs.Log.Info("----> Starting Logstash config check...")
 
 	// template processing for check
-	templateDir := filepath.Join(gs.Stager.DepDir(), "configs")
+	templateDir := filepath.Join(gs.Stager.DepDir(), "conf.d")
 	destDir := filepath.Join(gs.Stager.DepDir(), "logstash.conf.d")
 	err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), templateDir, destDir).Run()
 	if err != nil {

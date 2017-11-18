@@ -1,26 +1,25 @@
 ---
 log-level: Info
-logstash:
-  version: 5.6.1
-  cmd-args: ""
-  java-opts: ""
-  reserved-memory: 300
-  heap-percentage: 75
-  config-check: true
-  enable-service-fallback: true
-  config-templates:
-  - name: cf-input-syslog
-  - name: cf-filter-syslog
-  - name: cf-output-elasticsearch
-    service-instance-name: my-elasticsearch
-  - name: cf-output-elasticsearch
-    service-instance-name: my-elasticsearch2
-  - name: cf-output-stdout
-  plugins:
-  - logstash-input-kafka
-  - logstash-output-kafka
-  certificates:
-  - elasticsearch
+version: 5.6.1
+cmd-args: ""
+java-opts: ""
+reserved-memory: 300
+heap-percentage: 75
+config-check: true
+enable-service-fallback: true
+config-templates:
+- name: cf-input-syslog
+- name: cf-filter-syslog
+- name: cf-output-elasticsearch
+  service-instance-name: my-elasticsearch
+- name: cf-output-elasticsearch
+  service-instance-name: my-elasticsearch2
+- name: cf-output-stdout
+plugins:
+- logstash-input-kafka
+- logstash-output-kafka
+certificates:
+- elasticsearch
 curator:
   install: true
   version: ""

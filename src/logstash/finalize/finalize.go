@@ -80,7 +80,7 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				fi
 
 				echo "--> preparing runtime directories ..."
-				mkdir -p configs
+				mkdir -p conf.d
 				mkdir -p grok-patterns
 				mkdir -p mappings
 				mkdir -p curator.d
@@ -91,8 +91,9 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				mkdir -p logstash.conf.d
 
 				echo "--> template processing ..."
-				$GTE_HOME/gte configs logstash.conf.d
-				$GTE_HOME/gte $LS_ROOT/configs logstash.conf.d
+
+				$GTE_HOME/gte $HOME/conf.d $HOME/logstash.conf.d
+				$GTE_HOME/gte $LS_ROOT/conf.d $HOME/logstash.conf.d
 
 				echo "--> STARTING LOGSTASH ..."
 				if [ -n "$LG_CMD_ARGS"]; then
