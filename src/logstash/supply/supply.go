@@ -11,7 +11,6 @@ import (
 	conf "logstash/config"
 
 	"errors"
-	"log"
 	"logstash/util"
 	"os/exec"
 )
@@ -160,7 +159,7 @@ func (gs *Supplier) BuildpackDir() string {
 
 func (gs *Supplier) EvalLogstashFile() error {
 	gs.LogstashConfig = conf.LogstashConfig{
-		Logstash: conf.Logstash{Set: true, ConfigCheck: true, ReservedMemory: 300, HeapPercentage: 90},
+		Logstash: conf.Logstash{Set: true, ConfigCheck: false, ReservedMemory: 300, HeapPercentage: 90},
 		Curator:  conf.Curator{Set: true, Install: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
@@ -182,7 +181,6 @@ func (gs *Supplier) EvalLogstashFile() error {
 		gs.LogstashConfig.Curator.Install = false //not really needed but maybe we will switch to true later
 	}
 
-	gs.Log.Info("HeapPercentage %d", gs.LogstashConfig.Logstash.HeapPercentage)
 	//ToDo Eval values
 	if gs.LogstashConfig.Curator.Schedule == "" {
 		gs.LogstashConfig.Curator.Schedule = "@daily"
@@ -193,36 +191,15 @@ func (gs *Supplier) EvalLogstashFile() error {
 
 func (gs *Supplier) PrepareAppDirStructure() error {
 
-	//create dir configs if not exists
-	dir := filepath.Join(gs.Stager.BuildDir(), "configs")
+	//create dir configs in DepDir
+	dir := filepath.Join(gs.Stager.DepDir(), "configs")
 	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
 	}
 
-	//create dir grok-patterns  if not exists
-	dir = filepath.Join(gs.Stager.BuildDir(), "grok-patterns")
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		return err
-	}
-
-	//create dir mappings  if not exists
-	dir = filepath.Join(gs.Stager.BuildDir(), "mappings")
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		return err
-	}
-
-	//create dir curator.d  if not exists
-	dir = filepath.Join(gs.Stager.BuildDir(), "curator.d")
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		return err
-	}
-
-	//create dir logstash.conf.d  if not exists
-	dir = filepath.Join(gs.Stager.BuildDir(), "logstash.conf.d")
+	//create dir logstash.conf.d in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "logstash.conf.d")
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
@@ -264,7 +241,13 @@ func (gs *Supplier) EvalEnvironment() error {
 	}
 
 	//check if files (also directories) exist in the application's "configs" directory
-	files, err := ioutil.ReadDir(filepath.Join(gs.Stager.BuildDir(), "configs"))
+	configDir := filepath.Join(gs.Stager.BuildDir(), "configs")
+	if _, err := os.Stat(configDir); os.IsNotExist(err) {
+		gs.CustomFilesExists = false
+		return nil
+	}
+
+	files, err := ioutil.ReadDir(configDir)
 	if err != nil {
 		return err
 	}
@@ -438,6 +421,7 @@ func (gs *Supplier) InstallLogstash() error {
 			export LS_BP_HEAP_PERCENTAGE=%d
 			export LS_BP_JAVA_OPTS=%s
 			export LS_CMD_ARGS=%s
+			export LS_ROOT=$DEPS_DIR/%s
 			export LOGSTASH_HOME=$DEPS_DIR/%s
 			PATH=$PATH:$LOGSTASH_HOME/bin
 			`,
@@ -445,6 +429,7 @@ func (gs *Supplier) InstallLogstash() error {
 		gs.LogstashConfig.Logstash.HeapPercentage,
 		gs.LogstashConfig.Logstash.JavaOpts,
 		gs.LogstashConfig.Logstash.CmdArgs,
+		gs.Stager.DepsIdx(),
 		gs.Logstash.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Logstash, content); err != nil {
@@ -466,6 +451,8 @@ func (gs *Supplier) PrepareStagingEnvironment() error {
 
 	os.Setenv("JAVA_HOME", gs.OpenJdk.StagingLocation)
 	os.Setenv("PATH", os.Getenv("PATH")+":"+gs.OpenJdk.StagingLocation+"/bin")
+	os.Setenv("PORT", "8080") //dummy PORT: used by template processing for logstash check
+
 	gs.Log.Info("JAVA_HOME %s", os.Getenv("JAVA_HOME"))
 	gs.Log.Info("PATH %s", os.Getenv("PATH"))
 	gs.Log.Info("LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
@@ -476,14 +463,6 @@ func (gs *Supplier) InstallUserCertificates() error {
 
 	if len(gs.LogstashConfig.Logstash.Certificates) == 0 { // no certificates to install
 		return nil
-	}
-
-	bashCmd := []byte("#!/bin/bash\n$JAVA_HOME/bin/keytool -importcert -trustcacerts -keystore $JAVA_HOME/jre/lib/security/cacerts -storepass changeit -noprompt -alias $1 -file $2")
-
-	err := ioutil.WriteFile("/tmp/import_cert.sh", bashCmd, 755)
-	if err != nil {
-		gs.Log.Error("Error preparing the installtion of user certificates")
-		return err
 	}
 
 	localCerts, _ := gs.ReadLocalCertificates(gs.Stager.BuildDir() + "/certificates")
@@ -559,7 +538,7 @@ func (gs *Supplier) InstallTemplates() error {
 			found := false
 			templateName := strings.Trim(ct.Name, " ")
 			if len(templateName) == 0 {
-				gs.Log.Warning("No valid name defined for template in Logstash file")
+				gs.Log.Warning("Skipping template: no valid name defined for template in Logstash file")
 				continue
 			}
 			for _, t := range gs.TemplatesConfig.Templates {
@@ -572,7 +551,7 @@ func (gs *Supplier) InstallTemplates() error {
 
 					ti := t
 					if len(serviceInstanceName) > 0 && len(t.Tags) == 0 {
-						gs.Log.Warning("Service instance name '%s' defined for template %s in Logstash file will not be used", serviceInstanceName, templateName)
+						gs.Log.Warning("Service instance name '%s' is defined for template %s in Logstash file but template can not be bound to a service.", serviceInstanceName, templateName)
 					} else {
 						ti.ServiceInstanceName = serviceInstanceName
 					}
@@ -592,9 +571,8 @@ func (gs *Supplier) InstallTemplates() error {
 	for _, ti := range gs.TemplatesToInstall {
 
 		os.Setenv("SERVICE_INSTANCE_NAME", ti.ServiceInstanceName)
-
 		templateFile := filepath.Join(gs.BuildpackDir(), "defaults/templates/", ti.Name+".conf")
-		destFile := filepath.Join(gs.Stager.BuildDir(), "configs", ti.Name+".conf")
+		destFile := filepath.Join(gs.Stager.DepDir(), "configs", ti.Name+".conf")
 
 		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", fmt.Sprintf("%s:%s", templateFile, destFile)).Run()
 		if err != nil {
@@ -641,12 +619,51 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
 		return err
 	}
-	gs.Log.Info("LS_JAVA_OPTS=%s", os.Getenv("LS_JAVA_OPTS"))
-	gs.Log.Info("JAVA_OPTS=%s", os.Getenv("JAVA_OPTS"))
 	return nil
 }
 
 func (gs *Supplier) CheckLogstash() error {
+
+	gs.Log.Info("----> Starting Logstash config check...")
+
+	// template processing for check
+	templateDir := filepath.Join(gs.Stager.DepDir(), "configs")
+	destDir := filepath.Join(gs.Stager.DepDir(), "logstash.conf.d")
+	err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), fmt.Sprintf("%s:%s", templateDir, destDir)).Run()
+	if err != nil {
+		gs.Log.Error("Error processing templates for Logstash config check: %s", err.Error())
+		return err
+	}
+
+	// list files in logstash.conf.d
+	file, err := os.Open(destDir)
+	if err != nil {
+		gs.Log.Error("  --> failed opening logstash.conf.d directory: %s", err)
+		return err
+	}
+	defer file.Close()
+
+	gs.Log.Info("  --> Listing files in logstash.conf.d directory ...")
+	list, _ := file.Readdirnames(0) // 0 to read all files
+	found := false
+	for _, name := range list {
+		found = true
+		gs.Log.Info("      " + name)
+	}
+	if !found {
+		gs.Log.Warning("      " + "no files found")
+	}
+
+	gs.Log.Info("  --> Checking Logstash config ...")
+	// check logstash config
+	out, err := exec.Command(fmt.Sprintf("%s/bin/logstash", gs.Logstash.StagingLocation), "-f", destDir, "-t").CombinedOutput()
+	gs.Log.Info(string(out))
+	if err != nil {
+		gs.Log.Error("Error checking Logstash config: %s", err.Error())
+		return err
+	}
+
+	gs.Log.Info("  --> Finished Logstash config check...")
 
 	return nil
 }
@@ -704,32 +721,6 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version}
 	if err := gs.Manifest.InstallDependency(dep, dependency.StagingLocation); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func fileExists(filePath string) (exists bool) {
-	exists = true
-
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		exists = false
-	}
-
-	return
-}
-
-func readAllFiles(filePath string) error {
-
-	file, err := os.Open(filePath)
-	if err != nil {
-		log.Fatalf("failed opening directory: %s", err)
-	}
-	defer file.Close()
-
-	list, _ := file.Readdirnames(0) // 0 to read all files and folders
-	for _, name := range list {
-		fmt.Println(name)
 	}
 
 	return nil

@@ -7,6 +7,7 @@ logstash:
   reserved-memory: 300
   heap-percentage: 75
   config-check: true
+  enable-service-fallback: true
   config-templates:
   - name: cf-input-syslog
   - name: cf-filter-syslog
