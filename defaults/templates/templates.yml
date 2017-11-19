@@ -5,15 +5,11 @@ templates:
   is-default: true
   is-fallback: false
   tags:
-  mappings:
-  groks:
 - name: cf-filter-syslog
   type: filter
   is-default: true
   is-fallback: false
   tags:
-  mappings:
-  groks:
 - name: cf-output-elasticsearch
   type: output
   is-default: true
@@ -22,14 +18,10 @@ templates:
   - elasticsearch
   - elastic
   - es
-  mappings:
-  groks:
 - name: cf-output-stdout
   type: output
   is-default: false
   is-fallback: true
   tags:
-  mappings:
-  groks:
 
 

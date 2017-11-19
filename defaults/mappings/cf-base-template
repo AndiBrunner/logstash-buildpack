@@ -1,0 +1,242 @@
+{
+  "template": "logstash-*",
+  "settings": {
+    "index": {
+      /* Not sure, if we should set this globaly
+      "mapping": {
+        "coerce": "true"
+      },
+      */
+      "refresh_interval": "5s"
+    },
+    "analysis": {
+      "analyzer": {
+        "fqdn": {
+          "tokenizer": "fqdn",
+          "filter": [ "lowercase" ]
+        },
+        "path": {
+          "tokenizer": "path_hierarchy",
+          "filter": [ "lowercase" ]
+        },
+        "unknown_field_analyzer" : {
+          /*
+            the unknown_field_analyzer is used to mark dynamically added fields,
+            as they should be defined explicitely in the mapping.
+            Based on the idea in: https://breml.github.io/blog/2015/10/28/tagging-of-dynamically-added-fields-in-elasticsearch/
+          */
+          "type" : "whitespace"
+        }
+      },
+      "tokenizer": {
+        /*
+          fqdn tokenizer for host names or ipv4 addresses (. separated)
+          ipv6 addresses (: separated) are supported as well
+        */
+        "fqdn": {
+          "type": "pattern",
+          "pattern": "[.:]",
+          "group": -1
+        }
+      }
+    }
+  },
+  "mappings": {
+    "_default_": {
+      /*
+        disable field detection, all unknown fields will become a string
+        field with "unknown_field_analyzer".
+      */
+      "date_detection": false,
+      "numeric_detection": true,
+      "dynamic_templates": [
+        {
+          "all_unknown_string_fields": {
+            /*
+              All fields, which are not defined explicitly match this "dynamic_template",
+              all this fields get the "unknown_field_analyzer" applied, which makes them
+              identifiable (see comment above).
+            */
+            "match": "*",
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "text",
+              "analyzer" : "unknown_field_analyzer",
+              "norms": false,
+              "fields": {
+                /*
+                  for every field of type string there is a not_analyzed "raw" field kept
+                */
+                "raw": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            }
+          }
+        },
+        {
+          "all_unknown_long_fields": {
+            /*
+              All fields, which are not defined explicitly match this "dynamic_template",
+              all this fields get the "unknown_field_analyzer" applied, which makes them
+              identifiable (see comment above).
+            */
+            "match": "*",
+            "match_mapping_type": "string",
+            "mapping": {
+              "type": "text",
+              "analyzer" : "unknown_field_analyzer",
+              "norms": false,
+              "fields": {
+                /*
+                  for every field of type string there is a not_analyzed "raw" field kept
+                */
+                "raw": {
+                  "type": "long",
+                  "include_in_all": false,
+                  "ignore_malformed": true
+                }
+              }
+            }
+          }
+        },
+        {
+          "all_unknown_double_fields": {
+            /*
+              All fields, which are not defined explicitly match this "dynamic_template",
+              all this fields get the "unknown_field_analyzer" applied, which makes them
+              identifiable (see comment above).
+            */
+            "match": "*",
+            "match_mapping_type": "double",
+            "mapping": {
+              "type": "text",
+              "analyzer" : "unknown_field_analyzer",
+              "norms": false,
+              "fields": {
+                /*
+                  for every field of type string there is a not_analyzed "raw" field kept
+                */
+                "raw": {
+                  "type": "float",
+                  "include_in_all": false,
+                  "ignore_malformed": true
+                }
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        /*
+          Logstash standard fields
+        */
+        "@timestamp": {
+          "type": "date",
+          "include_in_all": false
+        },
+        "@version": {
+          "type": "keyword"
+        },
+        "address": {
+          "analyzer":"fqdn",
+          "norms": false,
+          "type": "text",
+          "fields": {
+            "raw": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "az": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "beat": {
+          "properties": {
+            "hostname": {
+              "analyzer":"fqdn",
+              "norms": false,
+              "type": "text",
+              "fields": {
+                "raw": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "deployment": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "environment": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "job": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "job_index": {
+          "type": "long",
+          "include_in_all": false,
+          "ignore_malformed": true
+        },
+        "message": {
+          "type": "text",
+          "norms": false
+        },
+        "offset": {
+          "type": "long",
+          "include_in_all": false,
+          "ignore_malformed": true
+        },
+        "pid": {
+          "type": "long",
+          "include_in_all": false,
+          "ignore_malformed": true
+        },
+        "process": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "process_timestamp": {
+          "type": "date",
+          "include_in_all": false,
+          "ignore_malformed": true
+        },
+        "severity": {
+          "type": "keyword",
+          "ignore_above": 1024
+        },
+        "source": {
+          "analyzer":"path",
+          "norms": false,
+          "type": "text",
+          "fields": {
+            "raw": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "tags": {
+          "type": "text",
+          "norms": false
+        },
+        "type": {
+          "type": "keyword",
+          "ignore_above": 1024
+        }
+      }
+    }
+  }
+}

@@ -3,4 +3,4 @@ config-templates:
 - name: cf-filter-syslog
 - name: cf-output-stdout
 curator:
-  install: true
+  install: false 

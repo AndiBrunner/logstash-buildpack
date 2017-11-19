@@ -215,6 +215,20 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 		return err
 	}
 
+	//create dir grok-patterns in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "grok-pattern")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir mappings in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "mappings")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
 	//create dir curator.d in DepDir
 	dir = filepath.Join(gs.Stager.DepDir(), "curator.d")
 	err = os.MkdirAll(dir, 0755)
@@ -439,7 +453,7 @@ func (gs *Supplier) PrepareCurator() error {
 	content = util.TrimLines(fmt.Sprintf(`
 				[job-local "curator"]
 				schedule = %s
-				command = $HOME/bin/curator.sh
+				command = {{- .Env.HOME -}}/bin/curator.sh
 				`,
 		gs.LogstashConfig.Curator.Schedule))
 
@@ -680,7 +694,32 @@ func (gs *Supplier) InstallTemplates() error {
 
 		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateFile, destFile).Run()
 		if err != nil {
-			gs.Log.Error("Error processing template %s: %s", ti.Name, err.Error())
+			gs.Log.Error("Error pre-processing template %s: %s", ti.Name, err.Error())
+			return err
+		}
+
+	}
+
+	// copy grok-patterns and mappings
+	if len(gs.TemplatesToInstall) > 0 {
+
+		//mappings
+		templateDir := filepath.Join(gs.BPDir(), "defaults/mappings")
+		destDir := filepath.Join(gs.Stager.DepDir(), "mappings")
+
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateDir, destDir).Run()
+		if err != nil {
+			gs.Log.Error("Error pre-processing mapping templates: %s", err.Error())
+			return err
+		}
+
+		//grok-patterns
+		templateDir = filepath.Join(gs.BPDir(), "defaults/grok-patterns")
+		destDir = filepath.Join(gs.Stager.DepDir(), "grok-patterns")
+
+		err = exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateDir, destDir).Run()
+		if err != nil {
+			gs.Log.Error("Error pre-processing grok-patterns templates: %s", err.Error())
 			return err
 		}
 

@@ -105,6 +105,11 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				$GTE_HOME/gte $HOME/conf.d $HOME/logstash.conf.d
 				$GTE_HOME/gte $LS_ROOT/conf.d $HOME/logstash.conf.d
 
+				#no template processing for user mappings and grok-patterns
+
+				$GTE_HOME/gte $LS_ROOT/mappings $HOME/mappings
+				$GTE_HOME/gte $LS_ROOT/grok-patterns $HOME/grok-patterns
+
 				$GTE_HOME/gte $HOME/curator.d $HOME/curator.conf.d
 				$GTE_HOME/gte $LS_ROOT/curator.d $HOME/curator.conf.d
 
