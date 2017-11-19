@@ -65,11 +65,12 @@ func Run(gf *Finalizer) error {
 func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 
 	//create start script
+
 	content := util.TrimLines(fmt.Sprintf(`
-				echo "--> starting up ..."
+				echo "--> STARTING UP ..."
 				MemLimits="$(echo ${VCAP_APPLICATION} | $JQ_HOME/jq '.limits.mem')"
 
-				echo "--> Container memory limit = ${MemLimits}m"
+				echo "--> container memory limit = ${MemLimits}m"
 				if [ -n "$LS_BP_JAVA_OPTS" ] || [ -z "$MemLimits" ] || [ -z "$LS_BP_RESERVED_MEMORY"  ] || [ -z "$LS_BP_HEAP_PERCENTAGE" ] ; then
 					export LS_JAVA_OPTS=$LS_BP_JAVA_OPTS
 					echo "--> Using JAVA_OPTS=\"${LS_JAVA_OPTS}\" (user defined)"
@@ -90,16 +91,42 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				fi
 				mkdir -p logstash.conf.d
 
-				echo "--> template processing ..."
+				if [ -d curator.conf.d ] ; then
+					rm -rf curator.conf.d
+				fi
+				mkdir -p curator.conf.d
 
+				if [ -d ofelia ] ; then
+					rm -rf ofelia
+				fi
+				mkdir -p ofelia
+
+				echo "--> template processing ..."
 				$GTE_HOME/gte $HOME/conf.d $HOME/logstash.conf.d
 				$GTE_HOME/gte $LS_ROOT/conf.d $HOME/logstash.conf.d
 
+				$GTE_HOME/gte $HOME/curator.d $HOME/curator.conf.d
+				$GTE_HOME/gte $LS_ROOT/curator.d $HOME/curator.conf.d
+
+				$GTE_HOME/gte $LS_ROOT/curator $HOME/bin
+				$GTE_HOME/gte $LS_ROOT/ofelia $HOME/ofelia
+
 				echo "--> STARTING LOGSTASH ..."
-				if [ -n "$LG_CMD_ARGS"]; then
-					echo "--> Using LG_CMD_ARGS=\"$LG_CMD_ARGS\""
+				if [ -n "$LS_CMD_ARGS"]; then
+					echo "--> using LS_CMD_ARGS=\"$LS_CMD_ARGS\""
 				fi
-				$LOGSTASH_HOME/bin/logstash -f logstash.conf.d $LG_CMD_ARGS
+
+				if [ -n "$LS_CURATOR_ENABLED"]; then
+					echo "--> running Curator once to create the Logstash index for today"
+					echo "    !! Curator is currently disabled !!"
+					#${HOME}/bin/curator.sh
+
+					echo "--> starting Ofelia for Curator in the background"
+					#$OFELIA_HOME/ofelia daemon --config ${HOME}/ofelia/schedule.ini 2>&1 &
+				fi
+
+				chmod +x $HOME/bin/*.sh
+				$LOGSTASH_HOME/bin/logstash -f logstash.conf.d $LS_CMD_ARGS
 				`))
 
 	err := ioutil.WriteFile(filepath.Join(gf.Stager.BuildDir(), "bin/run.sh"), []byte(content), 0755)

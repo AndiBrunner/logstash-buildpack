@@ -48,7 +48,8 @@ type Supplier struct {
 	TemplatesConfig    conf.TemplatesConfig
 	VcapApp            conf.VcapApp
 	VcapServices       conf.VcapServices
-	CustomFilesExists  bool
+	ConfigFilesExists  bool
+	CuratorFilesExists bool
 	TemplatesToInstall []conf.Template
 }
 
@@ -100,7 +101,9 @@ func Run(gs *Supplier) error {
 		if err := gs.InstallCurator(); err != nil {
 			return err
 		}
+
 	}
+
 	if err := gs.InstallOpenJdk(); err != nil {
 		return err
 	}
@@ -118,6 +121,11 @@ func Run(gs *Supplier) error {
 
 	//Install User Certificates
 	if err := gs.InstallUserCertificates(); err != nil {
+		return err
+	}
+
+	//Install Curator/Ofelia
+	if err := gs.PrepareCurator(); err != nil {
 		return err
 	}
 
@@ -207,6 +215,27 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 		return err
 	}
 
+	//create dir curator.d in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "curator.d")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir curator in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "curator")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir ofelia in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "ofelia")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -245,7 +274,7 @@ func (gs *Supplier) EvalEnvironment() error {
 	//check if files (also directories) exist in the application's "conf.d" directory
 	configDir := filepath.Join(gs.Stager.BuildDir(), "conf.d")
 	if _, err := os.Stat(configDir); os.IsNotExist(err) {
-		gs.CustomFilesExists = false
+		gs.ConfigFilesExists = false
 		return nil
 	}
 
@@ -254,7 +283,22 @@ func (gs *Supplier) EvalEnvironment() error {
 		return err
 	}
 	if len(files) > 0 {
-		gs.CustomFilesExists = true
+		gs.ConfigFilesExists = true
+	}
+
+	//check if curator files (also directories) exist in the application's "curator.d" directory
+	curatorDir := filepath.Join(gs.Stager.BuildDir(), "curator.d")
+	if _, err := os.Stat(curatorDir); os.IsNotExist(err) {
+		gs.CuratorFilesExists = false
+		return nil
+	}
+
+	curatorFiles, err := ioutil.ReadDir(curatorDir)
+	if err != nil {
+		return err
+	}
+	if len(curatorFiles) > 0 {
+		gs.CuratorFilesExists = true
 	}
 
 	return nil
@@ -316,34 +360,6 @@ func (gs *Supplier) InstallJq() error {
 	return nil
 }
 
-func (gs *Supplier) InstallCurator() error {
-	gs.Curator = Dependency{Name: "curator", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Curator.Version}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.Curator); err != nil {
-		gs.Log.Error("Unable to determine the Curator version to install: %s", err.Error())
-		return err
-	} else {
-		gs.Curator.Version = parsedVersion
-		gs.Curator.RuntimeLocation = gs.EvalRuntimeLocation(gs.Curator)
-		gs.Curator.StagingLocation = gs.EvalStagingLocation(gs.Curator)
-	}
-
-	if err := gs.InstallDependency(gs.Curator); err != nil {
-		gs.Log.Error("Error installing Curator: %s", err.Error())
-		return err
-	}
-
-	content := util.TrimLines(fmt.Sprintf(`
-				export CURATOR_HOME=$DEPS_DIR/%s
-				PATH=$PATH:$CURATOR_HOME
-				`, gs.Curator.RuntimeLocation))
-
-	if err := gs.WriteDependencyProfileD(gs.Curator, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for Curator: %s", err.Error())
-		return err
-	}
-	return nil
-}
-
 func (gs *Supplier) InstallOfelia() error {
 	gs.Ofelia = Dependency{Name: "ofelia", VersionParts: 3, ConfigVersion: ""}
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Ofelia); err != nil {
@@ -369,6 +385,84 @@ func (gs *Supplier) InstallOfelia() error {
 		gs.Log.Error("Error writing profile.d script for Ofelia: %s", err.Error())
 		return err
 	}
+	return nil
+}
+
+func (gs *Supplier) InstallCurator() error {
+	gs.Curator = Dependency{Name: "curator", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Curator.Version}
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.Curator); err != nil {
+		gs.Log.Error("Unable to determine the Curator version to install: %s", err.Error())
+		return err
+	} else {
+		gs.Curator.Version = parsedVersion
+		gs.Curator.RuntimeLocation = gs.EvalRuntimeLocation(gs.Curator)
+		gs.Curator.StagingLocation = gs.EvalStagingLocation(gs.Curator)
+	}
+
+	if err := gs.InstallDependency(gs.Curator); err != nil {
+		gs.Log.Error("Error installing Curator: %s", err.Error())
+		return err
+	}
+
+	content := util.TrimLines(fmt.Sprintf(`
+				export CURATOR_HOME=$DEPS_DIR/%s
+				PATH=${CURATOR_HOME}/python3/bin:${CURATOR_HOME}/curator/bin:${PATH}
+				`, gs.Curator.RuntimeLocation))
+
+	if err := gs.WriteDependencyProfileD(gs.Curator, content); err != nil {
+		gs.Log.Error("Error writing profile.d script for Curator: %s", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (gs *Supplier) PrepareCurator() error {
+
+	//create Curator start script
+	content := util.TrimLines(fmt.Sprintf(`
+				#!/bin/bash
+				export PYTHONHOME=${CURATOR_HOME}/python3
+				export PYTHONPATH=${CURATOR_HOME}/curator/lib/python3.4/site-packages
+				export LC_ALL=en_US.UTF-8
+				export LANG=en_US.UTF-8
+				export PATH=${CURATOR_HOME}/python3/bin:${CURATOR_HOME}/curator/bin:${PATH}
+				${CURATOR_HOME}/python3/bin/python3 ${CURATOR_HOME}/curator/bin/curator --config ${HOME}/curator.d/curator.yml ${HOME}/curator.d/actions.yml
+				`))
+
+	err := ioutil.WriteFile(filepath.Join(gs.Stager.DepDir(), "curator", "curator.sh"), []byte(content), 0755)
+	if err != nil {
+		gs.Log.Error("Unable to create Curator start script: %s", err.Error())
+		return err
+	}
+
+	//create Curator start script
+	content = util.TrimLines(fmt.Sprintf(`
+				[job-local "curator"]
+				schedule = %s
+				command = $HOME/bin/curator.sh
+				`,
+		gs.LogstashConfig.Curator.Schedule))
+
+	err = ioutil.WriteFile(filepath.Join(gs.Stager.DepDir(), "ofelia", "schedule.ini"), []byte(content), 0644)
+	if err != nil {
+		gs.Log.Error("Unable to create Ofelia schedule.ini: %s", err.Error())
+		return err
+	}
+
+	// pre-processing of curator config templates if no user files exist
+	if !gs.CuratorFilesExists {
+
+		templateFile := filepath.Join(gs.BPDir(), "defaults/curator")
+		destFile := filepath.Join(gs.Stager.DepDir(), "curator.d")
+
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateFile, destFile).Run()
+		if err != nil {
+			gs.Log.Error("Error pre-processing curator config templates: %s", err.Error())
+			return err
+		}
+
+	}
+
 	return nil
 }
 
@@ -418,18 +512,24 @@ func (gs *Supplier) InstallLogstash() error {
 		return err
 	}
 
+	curatorEnabled := ""
+	if gs.LogstashConfig.Curator.Install {
+		curatorEnabled = "enabled"
+	}
 	content := util.TrimLines(fmt.Sprintf(`
 			export LS_BP_RESERVED_MEMORY=%d
 			export LS_BP_HEAP_PERCENTAGE=%d
 			export LS_BP_JAVA_OPTS=%s
 			export LS_CMD_ARGS=%s
 			export LS_ROOT=$DEPS_DIR/%s
+			export LS_CURATOR_ENABLED=%s
 			export LOGSTASH_HOME=$DEPS_DIR/%s
 			PATH=$PATH:$LOGSTASH_HOME/bin
 			`,
 		gs.LogstashConfig.ReservedMemory,
 		gs.LogstashConfig.HeapPercentage,
 		gs.LogstashConfig.JavaOpts,
+		curatorEnabled,
 		gs.LogstashConfig.CmdArgs,
 		gs.Stager.DepsIdx(),
 		gs.Logstash.RuntimeLocation))
@@ -498,7 +598,7 @@ func (gs *Supplier) InstallTemplates() error {
 
 	gs.TemplatesToInstall = []conf.Template{}
 
-	if !gs.CustomFilesExists && len(gs.LogstashConfig.ConfigTemplates) == 0 {
+	if !gs.ConfigFilesExists && len(gs.LogstashConfig.ConfigTemplates) == 0 {
 		// install all default templates
 
 		//copy default templates to config
@@ -723,6 +823,9 @@ func (gs *Supplier) EvalStagingLocation(dependency Dependency) string {
 func (gs *Supplier) InstallDependency(dependency Dependency) error {
 
 	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version}
+
+	//Check Cache
+
 	if err := gs.Manifest.InstallDependency(dep, dependency.StagingLocation); err != nil {
 		return err
 	}
