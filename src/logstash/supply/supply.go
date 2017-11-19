@@ -216,7 +216,7 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 	}
 
 	//create dir grok-patterns in DepDir
-	dir = filepath.Join(gs.Stager.DepDir(), "grok-pattern")
+	dir = filepath.Join(gs.Stager.DepDir(), "grok-patterns")
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
