@@ -529,9 +529,9 @@ func (gs *Supplier) InstallLogstash() error {
 		gs.LogstashConfig.ReservedMemory,
 		gs.LogstashConfig.HeapPercentage,
 		gs.LogstashConfig.JavaOpts,
-		curatorEnabled,
 		gs.LogstashConfig.CmdArgs,
 		gs.Stager.DepsIdx(),
+		curatorEnabled,
 		gs.Logstash.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Logstash, content); err != nil {

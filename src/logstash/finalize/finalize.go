@@ -112,11 +112,11 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				$GTE_HOME/gte $LS_ROOT/ofelia $HOME/ofelia
 
 				echo "--> STARTING LOGSTASH ..."
-				if [ -n "$LS_CMD_ARGS"]; then
+				if [ -n "$LS_CMD_ARGS" ] ; then
 					echo "--> using LS_CMD_ARGS=\"$LS_CMD_ARGS\""
 				fi
 
-				if [ -n "$LS_CURATOR_ENABLED"]; then
+				if [ -n "$LS_CURATOR_ENABLED" ] ; then
 					echo "--> running Curator once to create the Logstash index for today"
 					echo "    !! Curator is currently disabled !!"
 					#${HOME}/bin/curator.sh
