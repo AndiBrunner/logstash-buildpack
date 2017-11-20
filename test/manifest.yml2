@@ -1,8 +1,0 @@
----
-applications:
-- name: andi-logstash
-  memory: 2G
-  services:
-  - andi-elasticsearch
-- name: andi-logstash3
-  memory: 2G

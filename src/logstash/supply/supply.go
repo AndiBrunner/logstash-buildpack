@@ -757,10 +757,11 @@ func (gs *Supplier) InstallTemplates() error {
 
 	for key, _ := range mappingsToInstall {
 		mappingFile := filepath.Join(gs.BPDir(), "defaults/mappings", key)
-		destDir := filepath.Join(gs.Stager.DepDir(), "mappings")
+		destFile := filepath.Join(gs.Stager.DepDir(), "mappings", key)
 
-		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", mappingFile, destDir).Run()
+		out, err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", mappingFile, destFile).CombinedOutput()
 		if err != nil {
+			gs.Log.Error(string(out))
 			gs.Log.Error("Error pre-processing mapping template %s: %s", key, err.Error())
 			return err
 		}
@@ -768,9 +769,9 @@ func (gs *Supplier) InstallTemplates() error {
 
 	for key, _ := range groksToInstall {
 		grokFile := filepath.Join(gs.BPDir(), "defaults/grok-patterns", key)
-		destDir := filepath.Join(gs.Stager.DepDir(), "grok-patterns")
+		destFile := filepath.Join(gs.Stager.DepDir(), "grok-patterns", key)
 
-		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", grokFile, destDir).Run()
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", grokFile, destFile).Run()
 		if err != nil {
 			gs.Log.Error("Error pre-processing grok-patterns template %s: %s", key, err.Error())
 			return err
