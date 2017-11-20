@@ -1,6 +1,6 @@
 ---
 log-level: Info
-version: 5.6.1
+version: 6.0.0
 cmd-args: ""
 java-opts: ""
 reserved-memory: 300
@@ -16,6 +16,7 @@ config-templates:
   service-instance-name: my-elasticsearch2
 - name: cf-output-stdout
 plugins:
+- x-pack
 - logstash-input-kafka
 - logstash-output-kafka
 certificates:

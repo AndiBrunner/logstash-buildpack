@@ -21,6 +21,7 @@ type Template struct {
 	Tags                []string `yaml:"tags"`
 	Groks               []string `yaml:"groks"`
 	Mappings            []string `yaml:"mappings"`
+	Plugins             []string `yaml:"plugins"`
 	ServiceInstanceName string   `yaml:"-"`
 }
 

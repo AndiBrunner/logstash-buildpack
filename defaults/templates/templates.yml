@@ -3,13 +3,12 @@ templates:
 - name: cf-input-syslog
   type: input
   is-default: true
-  is-fallback: false
-  tags:
 - name: cf-filter-syslog
   type: filter
   is-default: true
   is-fallback: false
-  tags:
+  groks:
+  - cf-timestamps
 - name: cf-output-elasticsearch
   type: output
   is-default: true
@@ -18,6 +17,10 @@ templates:
   - elasticsearch
   - elastic
   - es
+  mappings:
+  - cf-base-template
+  plugins:
+  - x-pack
 - name: cf-output-stdout
   type: output
   is-default: false

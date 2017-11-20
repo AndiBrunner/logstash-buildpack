@@ -2,7 +2,9 @@
 language: logstash
 default_versions:
 - name: logstash
-  version: '5.6.x'
+  version: '6.0.x'
+- name: logstash-plugins
+  version: '6.0.x'
 - name: openjdk
   version: '1.8.x'
 - name: curator
@@ -15,9 +17,15 @@ default_versions:
   version: '0.2.x'
 dependencies:
 - name: logstash
-  version: 5.6.1
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-5.6.1.tar.gz
-  md5: 234a4ebec934775332f98899fb7d8aa5
+  version: 6.0.0
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-6.0.0.tar.gz
+  md5: 1a28486b8ba164af9052fcd51297deb2
+  cf_stacks:
+  - cflinuxfs2
+- name: logstash-plugins
+  version: 6.0.0
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-plugins-6.0.0.tar.gz
+  md5: 8c30abc3c424c27c4748f378a6dc4d67
   cf_stacks:
   - cflinuxfs2
 - name: openjdk

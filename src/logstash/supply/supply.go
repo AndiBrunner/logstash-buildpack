@@ -42,8 +42,9 @@ type Supplier struct {
 	Jq                 Dependency
 	Ofelia             Dependency
 	Curator            Dependency
-	Logstash           Dependency
 	OpenJdk            Dependency
+	Logstash           Dependency
+	LogstashPlugins    Dependency
 	LogstashConfig     conf.LogstashConfig
 	TemplatesConfig    conf.TemplatesConfig
 	VcapApp            conf.VcapApp
@@ -51,6 +52,7 @@ type Supplier struct {
 	ConfigFilesExists  bool
 	CuratorFilesExists bool
 	TemplatesToInstall []conf.Template
+	PluginsToInstall   map[string]string
 }
 
 type Dependency struct {
@@ -63,14 +65,6 @@ type Dependency struct {
 }
 
 func Run(gs *Supplier) error {
-
-	//Eval Logstash file and prepare dir structure
-	if err := gs.EvalTestCache(); err != nil {
-		gs.Log.Error("Unable to test cache: %s", err.Error())
-		return err
-	}
-
-
 
 	//Eval Logstash file and prepare dir structure
 	if err := gs.EvalLogstashFile(); err != nil {
@@ -96,23 +90,27 @@ func Run(gs *Supplier) error {
 	}
 
 	//Install Dependencies
-	if err := gs.InstallGTE(); err != nil {
+	if err := gs.InstallDependencyGTE(); err != nil {
 		return err
 	}
-	if err := gs.InstallJq(); err != nil {
+	if err := gs.InstallDependencyJq(); err != nil {
 		return err
 	}
 	if gs.LogstashConfig.Curator.Install {
-		if err := gs.InstallOfelia(); err != nil {
+		if err := gs.InstallDependencyOfelia(); err != nil {
 			return err
 		}
-		if err := gs.InstallCurator(); err != nil {
+		if err := gs.InstallDependencyCurator(); err != nil {
 			return err
 		}
 
 	}
 
-	if err := gs.InstallOpenJdk(); err != nil {
+	if err := gs.InstallDependencyOpenJdk(); err != nil {
+		return err
+	}
+
+	if err := gs.InstallDependencyLogstashPlugins(); err != nil {
 		return err
 	}
 
@@ -170,28 +168,6 @@ func Run(gs *Supplier) error {
 func (gs *Supplier) BPDir() string {
 
 	return gs.BuildpackDir
-}
-
-
-func (gs *Supplier) EvalTestCache() error {
-
-	if strings.ToLower(gs.LogstashConfig.LogLevel) == "debug" {
-		gs.Log.Info("----> Show staging directories:")
-		gs.Log.Info("        Cache dir: %s", gs.Stager.CacheDir())
-		gs.Log.Info("        Build dir: %s", gs.Stager.BuildDir())
-		gs.Log.Info("        Buildpack dir: %s", gs.BPDir())
-		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
-		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
-
-		gs.Log.Info("----> list cache dir")
-
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", gs.Stager.CacheDir())).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error listing cache dir:", err.Error())
-		}
-	}
-	return nil
 }
 
 func (gs *Supplier) EvalLogstashFile() error {
@@ -254,6 +230,13 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 
 	//create dir mappings in DepDir
 	dir = filepath.Join(gs.Stager.DepDir(), "mappings")
+	err = os.MkdirAll(dir, 0755)
+	if err != nil {
+		return err
+	}
+
+	//create dir plugins in DepDir
+	dir = filepath.Join(gs.Stager.DepDir(), "plugins")
 	err = os.MkdirAll(dir, 0755)
 	if err != nil {
 		return err
@@ -348,7 +331,7 @@ func (gs *Supplier) EvalEnvironment() error {
 	return nil
 }
 
-func (gs *Supplier) InstallGTE() error {
+func (gs *Supplier) InstallDependencyGTE() error {
 	gs.GTE = Dependency{Name: "gte", VersionParts: 3, ConfigVersion: ""}
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.GTE); err != nil {
 		gs.Log.Error("Unable to determine the GTE version to install: %s", err.Error())
@@ -376,7 +359,7 @@ func (gs *Supplier) InstallGTE() error {
 	return nil
 }
 
-func (gs *Supplier) InstallJq() error {
+func (gs *Supplier) InstallDependencyJq() error {
 	gs.Jq = Dependency{Name: "jq", VersionParts: 3, ConfigVersion: ""}
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Jq); err != nil {
 		gs.Log.Error("Unable to determine the Jq version to install: %s", err.Error())
@@ -404,7 +387,7 @@ func (gs *Supplier) InstallJq() error {
 	return nil
 }
 
-func (gs *Supplier) InstallOfelia() error {
+func (gs *Supplier) InstallDependencyOfelia() error {
 	gs.Ofelia = Dependency{Name: "ofelia", VersionParts: 3, ConfigVersion: ""}
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Ofelia); err != nil {
 		gs.Log.Error("Unable to determine the Ofelia version to install: %s", err.Error())
@@ -432,7 +415,7 @@ func (gs *Supplier) InstallOfelia() error {
 	return nil
 }
 
-func (gs *Supplier) InstallCurator() error {
+func (gs *Supplier) InstallDependencyCurator() error {
 	gs.Curator = Dependency{Name: "curator", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Curator.Version}
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.Curator); err != nil {
 		gs.Log.Error("Unable to determine the Curator version to install: %s", err.Error())
@@ -510,7 +493,7 @@ func (gs *Supplier) PrepareCurator() error {
 	return nil
 }
 
-func (gs *Supplier) InstallOpenJdk() error {
+func (gs *Supplier) InstallDependencyOpenJdk() error {
 	gs.OpenJdk = Dependency{Name: "openjdk", VersionParts: 3, ConfigVersion: ""}
 
 	if parsedVersion, err := gs.SelectDependencyVersion(gs.OpenJdk); err != nil {
@@ -536,6 +519,27 @@ func (gs *Supplier) InstallOpenJdk() error {
 		gs.Log.Error("Error writing profile.d script for JDK: %s", err.Error())
 		return err
 	}
+	return nil
+}
+
+func (gs *Supplier) InstallDependencyLogstashPlugins() error {
+
+	//Install logstash-plugins from S3
+	gs.LogstashPlugins = Dependency{Name: "logstash-plugins", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Version} //same version as Logstash
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.LogstashPlugins); err != nil {
+		gs.Log.Error("Unable to determine the version of the default Logstash Plugins: %s", err.Error())
+		return err
+	} else {
+		gs.LogstashPlugins.Version = parsedVersion
+		gs.LogstashPlugins.RuntimeLocation = gs.EvalRuntimeLocation(gs.LogstashPlugins)
+		gs.LogstashPlugins.StagingLocation = gs.EvalStagingLocation(gs.LogstashPlugins)
+	}
+
+	if err := gs.InstallDependency(gs.LogstashPlugins); err != nil {
+		gs.Log.Error("Error installing the default Logstash Plugins: %s", err.Error())
+		return err
+	}
+
 	return nil
 }
 
@@ -622,7 +626,7 @@ func (gs *Supplier) InstallUserCertificates() error {
 		if localCert != "" {
 			gs.Log.Info(fmt.Sprintf("----> installing user certificate '%s' to TrustStore ... ", gs.LogstashConfig.Certificates[i]))
 			certToInstall := gs.Stager.BuildDir() + "/certificates/" + localCert
-			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", fmt.Sprintf("%s/jre/lib/security/cacerts", gs.OpenJdk.StagingLocation ), "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Certificates[i], "-file", certToInstall).CombinedOutput()
+			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", fmt.Sprintf("%s/jre/lib/security/cacerts", gs.OpenJdk.StagingLocation), "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Certificates[i], "-file", certToInstall).CombinedOutput()
 			gs.Log.Info(string(out))
 			if err != nil {
 				gs.Log.Warning("Error installing user certificate '%s' to TrustStore: %s", gs.LogstashConfig.Certificates[i], err.Error())
@@ -730,63 +734,95 @@ func (gs *Supplier) InstallTemplates() error {
 
 	}
 
-	// copy grok-patterns and mappings
-	if len(gs.TemplatesToInstall) > 0 {
+	// copy grok-patterns, mappings and plugins
+	var mappingsToInstall map[string]string
+	var groksToInstall map[string]string
 
-		//mappings
-		templateDir := filepath.Join(gs.BPDir(), "defaults/mappings")
+	mappingsToInstall = make(map[string]string)
+	groksToInstall = make(map[string]string)
+	gs.PluginsToInstall = make(map[string]string)
+
+	for i := 0; i < len(gs.TemplatesToInstall); i++ {
+
+		for m := 0; m < len(gs.TemplatesToInstall[i].Mappings); m++ {
+			mappingsToInstall[gs.TemplatesToInstall[i].Mappings[m]] = ""
+		}
+		for g := 0; g < len(gs.TemplatesToInstall[i].Groks); g++ {
+			groksToInstall[gs.TemplatesToInstall[i].Groks[g]] = ""
+		}
+		for p := 0; p < len(gs.TemplatesToInstall[i].Plugins); p++ {
+			gs.PluginsToInstall[gs.TemplatesToInstall[i].Plugins[p]] = ""
+		}
+	}
+
+	for key, _ := range mappingsToInstall {
+		mappingFile := filepath.Join(gs.BPDir(), "defaults/mappings", key)
 		destDir := filepath.Join(gs.Stager.DepDir(), "mappings")
 
-		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateDir, destDir).Run()
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", mappingFile, destDir).Run()
 		if err != nil {
-			gs.Log.Error("Error pre-processing mapping templates: %s", err.Error())
+			gs.Log.Error("Error pre-processing mapping template %s: %s", key, err.Error())
 			return err
 		}
-
-		//grok-patterns
-		templateDir = filepath.Join(gs.BPDir(), "defaults/grok-patterns")
-		destDir = filepath.Join(gs.Stager.DepDir(), "grok-patterns")
-
-		err = exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", templateDir, destDir).Run()
-		if err != nil {
-			gs.Log.Error("Error pre-processing grok-patterns templates: %s", err.Error())
-			return err
-		}
-
 	}
+
+	for key, _ := range groksToInstall {
+		grokFile := filepath.Join(gs.BPDir(), "defaults/grok-patterns", key)
+		destDir := filepath.Join(gs.Stager.DepDir(), "grok-patterns")
+
+		err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", grokFile, destDir).Run()
+		if err != nil {
+			gs.Log.Error("Error pre-processing grok-patterns template %s: %s", key, err.Error())
+			return err
+		}
+	}
+
+	//default Plugins will be installed in method "InstallLogstashPlugin"
 
 	return nil
 }
 
 func (gs *Supplier) InstallLogstashPlugins() error {
 
-	if len(gs.LogstashConfig.Plugins) == 0 { // no plugins to install
+	//copy the user defined plugins to the PluginsToInstall map which may already have the default plugins in it
+	for i := 0; i < len(gs.LogstashConfig.Plugins); i++ {
+		gs.PluginsToInstall[gs.LogstashConfig.Plugins[i]] = ""
+	}
+
+	if len(gs.PluginsToInstall) == 0 { // no plugins to install at all
 		return nil
 	}
 
-	localPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
+	defaultPlugins, _ := gs.ReadLocalPlugins(gs.LogstashPlugins.StagingLocation)
+	userPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
-	for i := 0; i < len(gs.LogstashConfig.Plugins); i++ {
-
-		localPlugin := localPlugins[gs.LogstashConfig.Plugins[i]]
-
-		pluginToInstall := gs.LogstashConfig.Plugins[i]
-
-		if localPlugin != "" {
-			pluginToInstall = gs.Stager.BuildDir() + "/plugins/" + localPlugin
+	gs.Log.Info("----> Installing Logstash plugins ...")
+	for key, _ := range gs.PluginsToInstall {
+		//Priorisation
+		pluginToInstall := key // Prio 3 (online installation)
+		defaultPlugin := gs.GetLocalPlugin(key, defaultPlugins)
+		userPlugin := ""
+		if defaultPlugin != "" {
+			pluginToInstall = defaultPlugin // Prio 1 (offline installation) returns local path to dependency plugin
+		} else {
+			userPlugin = gs.GetLocalPlugin(key, userPlugins)
+			if userPlugin != "" {
+				pluginToInstall = userPlugin // Prio 2 (offline installation) returns path to user plugin
+			}
 		}
-		cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "install", pluginToInstall)
-		gs.Log.Info(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation))
 
+		//Install Plugin
+		cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "install", pluginToInstall)
 		err := cmd.Run()
 		if err != nil {
-			gs.Log.Error("Error installing Logstash plugin %s: %s", gs.LogstashConfig.Plugins[i], err.Error())
+			gs.Log.Error("Error installing Logstash plugin %s: %s", key, err.Error())
 			return err
 		}
-		gs.Log.Info("Logstash plugin %s installed", gs.LogstashConfig.Plugins[i])
 	}
 
-	cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list")
+	gs.Log.Info("----> Listing all installed Logstash plugins ...")
+
+	cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list", "--verbose")
 	err := cmd.Run()
 	if err != nil {
 		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
@@ -931,27 +967,27 @@ func (gs *Supplier) ReadLocalCertificates(filePath string) (map[string]string, e
 	return localCerts, nil
 }
 
-func (gs *Supplier) ReadLocalPlugins(filePath string) (map[string]string, error) {
-
-	var localPlugins map[string]string
-	localPlugins = make(map[string]string)
+func (gs *Supplier) ReadLocalPlugins(filePath string) ([]string, error) {
 
 	file, err := os.Open(filePath)
 	if err != nil {
 		gs.Log.Error("failed opening directory: %s", err)
-		return localPlugins, err
+		return nil, err
 	}
 	defer file.Close()
 
 	list, _ := file.Readdirnames(0) // 0 to read all files and folders
-	for _, name := range list {
-		pluginParts := strings.Split(name, "-")
 
-		if len(pluginParts) == 4 {
-			pluginName := pluginParts[0] + "-" + pluginParts[1] + "-" + pluginParts[2]
-			localPlugins[pluginName] = name
+	return list, nil
+}
+
+func (gs *Supplier) GetLocalPlugin(pluginName string, pluginFileNames []string) string {
+
+	for i := 0; i < len(pluginFileNames); i++ {
+		if strings.HasPrefix(pluginFileNames[i], pluginName) {
+			return pluginFileNames[i]
 		}
 	}
 
-	return localPlugins, nil
+	return ""
 }

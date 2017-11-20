@@ -1,6 +1,5 @@
 config-templates:
-- name: cf-input-syslog
-- name: cf-filter-syslog
-- name: cf-output-stdout
 curator:
   install: false 
+certificates:
+- elasticsearch
