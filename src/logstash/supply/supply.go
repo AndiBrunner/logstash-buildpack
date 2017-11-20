@@ -795,8 +795,6 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 	}
 
 	defaultPlugins, _ := gs.ReadLocalPlugins(gs.LogstashPlugins.StagingLocation)
-
-	gs.Log.Info(strings.Join(defaultPlugins,","))
 	userPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
 	gs.Log.Info("----> Installing Logstash plugins ...")
@@ -806,11 +804,11 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		defaultPlugin := gs.GetLocalPlugin(key, defaultPlugins)
 		userPlugin := ""
 		if defaultPlugin != "" {
-			pluginToInstall = defaultPlugin // Prio 1 (offline installation) returns local path to dependency plugin
+			pluginToInstall = filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 1 (offline installation)
 		} else {
 			userPlugin = gs.GetLocalPlugin(key, userPlugins)
 			if userPlugin != "" {
-				pluginToInstall = userPlugin // Prio 2 (offline installation) returns path to user plugin
+				pluginToInstall = filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 2 (offline installation)
 			}
 		}
 
