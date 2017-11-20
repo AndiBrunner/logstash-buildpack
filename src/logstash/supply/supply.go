@@ -183,7 +183,7 @@ func (gs *Supplier) EvalTestCache() error {
 
 	gs.Log.Info("----> test cache")
 
-	out, err := exec.Command("bash", "-c", fmt.Sprintf("' ls -al $(dirname %s)'", gs.Stager.CacheDir())).CombinedOutput()
+	out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al $(dirname %s)", gs.Stager.CacheDir())).CombinedOutput()
 	gs.Log.Info(string(out))
 	if err != nil {
 		gs.Log.Warning("Error listing parent:", err.Error())
