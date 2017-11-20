@@ -175,14 +175,22 @@ func (gs *Supplier) BPDir() string {
 
 func (gs *Supplier) EvalTestCache() error {
 
-	gs.Log.Info("----> cache dir", gs.Stager.CacheDir())
-	gs.Log.Info("----> dep dir",gs.Stager.DepDir())
-	gs.Log.Info("----> build dir", gs.Stager.BuildDir())
-	gs.Log.Info("----> DepsIdx", gs.Stager.DepsIdx())
-	gs.Log.Info("----> buildpack dir", gs.BPDir())
+	gs.Log.Info("----> cache dir: %s", gs.Stager.CacheDir())
+	gs.Log.Info("----> dep dir: %s",gs.Stager.DepDir())
+	gs.Log.Info("----> build dir: %s", gs.Stager.BuildDir())
+	gs.Log.Info("----> DepsIdx: %s", gs.Stager.DepsIdx())
+	gs.Log.Info("----> buildpack dir: %s", gs.BPDir())
 
 	gs.Log.Info("----> test cache")
-	out, err := exec.Command("bash", "-c", fmt.Sprintf("' ls -al %s'", gs.Stager.CacheDir())).CombinedOutput()
+
+	out, err := exec.Command("bash", "-c", fmt.Sprintf("' ls -al ../%s'", gs.Stager.CacheDir())).CombinedOutput()
+	gs.Log.Info(string(out))
+	if err != nil {
+		gs.Log.Warning("Error listing parent:", err.Error())
+	}
+
+
+	out, err = exec.Command("bash", "-c", fmt.Sprintf("' ls -al %s'", gs.Stager.CacheDir())).CombinedOutput()
 	gs.Log.Info(string(out))
 	if err != nil {
 		gs.Log.Warning("Error listing cache --> creating cache dir:", err.Error())
