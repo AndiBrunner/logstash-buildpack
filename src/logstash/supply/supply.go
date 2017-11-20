@@ -175,34 +175,22 @@ func (gs *Supplier) BPDir() string {
 
 func (gs *Supplier) EvalTestCache() error {
 
-	gs.Log.Info("----> cache dir: %s", gs.Stager.CacheDir())
-	gs.Log.Info("----> dep dir: %s",gs.Stager.DepDir())
-	gs.Log.Info("----> build dir: %s", gs.Stager.BuildDir())
-	gs.Log.Info("----> DepsIdx: %s", gs.Stager.DepsIdx())
-	gs.Log.Info("----> buildpack dir: %s", gs.BPDir())
+	if strings.ToLower(gs.LogstashConfig.LogLevel) == "debug" {
+		gs.Log.Info("----> Show staging directories:")
+		gs.Log.Info("        Cache dir: %s", gs.Stager.CacheDir())
+		gs.Log.Info("        Build dir: %s", gs.Stager.BuildDir())
+		gs.Log.Info("        Buildpack dir: %s", gs.BPDir())
+		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
+		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
 
-	gs.Log.Info("----> test cache")
+		gs.Log.Info("----> list cache dir")
 
-	out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al $(dirname %s)", gs.Stager.CacheDir())).CombinedOutput()
-	gs.Log.Info(string(out))
-	if err != nil {
-		gs.Log.Warning("Error listing parent:", err.Error())
-	}
-
-
-	out, err = exec.Command("bash", "-c", fmt.Sprintf("' ls -al %s'", gs.Stager.CacheDir())).CombinedOutput()
-	gs.Log.Info(string(out))
-	if err != nil {
-		gs.Log.Warning("Error listing cache --> creating cache dir:", err.Error())
-
-		os.MkdirAll(gs.Stager.CacheDir(),0755)
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("' ls -al %s'", gs.Stager.CacheDir())).CombinedOutput()
+		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", gs.Stager.CacheDir())).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
-			gs.Log.Warning("Error listing cache 2:", err.Error())
+			gs.Log.Warning("Error listing cache dir:", err.Error())
 		}
 	}
-
 	return nil
 }
 
@@ -634,7 +622,7 @@ func (gs *Supplier) InstallUserCertificates() error {
 		if localCert != "" {
 			gs.Log.Info(fmt.Sprintf("----> installing user certificate '%s' to TrustStore ... ", gs.LogstashConfig.Certificates[i]))
 			certToInstall := gs.Stager.BuildDir() + "/certificates/" + localCert
-			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", "cacerts", "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Certificates[i], "-file", certToInstall).CombinedOutput()
+			out, err := exec.Command(fmt.Sprintf("%s/bin/keytool", gs.OpenJdk.StagingLocation), "-import", "-trustcacerts", "-keystore", fmt.Sprintf("%s/jre/lib/security/cacerts", gs.OpenJdk.StagingLocation ), "-storepass", "changeit", "-noprompt", "-alias", gs.LogstashConfig.Certificates[i], "-file", certToInstall).CombinedOutput()
 			gs.Log.Info(string(out))
 			if err != nil {
 				gs.Log.Warning("Error installing user certificate '%s' to TrustStore: %s", gs.LogstashConfig.Certificates[i], err.Error())
