@@ -25,7 +25,7 @@ dependencies:
 - name: logstash-plugins
   version: 6.0.0
   uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-plugins-6.0.0.tar.gz
-  md5: 8c30abc3c424c27c4748f378a6dc4d67
+  md5: fecd60a155dc0ee2ab1c681e4455b9bc
   cf_stacks:
   - cflinuxfs2
 - name: openjdk
