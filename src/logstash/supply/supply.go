@@ -796,7 +796,7 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 
 	defaultPlugins, _ := gs.ReadLocalPlugins(gs.LogstashPlugins.StagingLocation)
 
-	gs.Log.Info(string(defaultPlugins))
+	gs.Log.Info(strings.Join(defaultPlugins,","))
 	userPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
 	gs.Log.Info("----> Installing Logstash plugins ...")
