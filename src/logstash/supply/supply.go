@@ -795,6 +795,8 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 	}
 
 	defaultPlugins, _ := gs.ReadLocalPlugins(gs.LogstashPlugins.StagingLocation)
+
+	gs.Log.Info(string(defaultPlugins))
 	userPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
 	gs.Log.Info("----> Installing Logstash plugins ...")
@@ -813,9 +815,9 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		}
 
 		//Install Plugin
-		cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "install", pluginToInstall)
-		err := cmd.Run()
+		out, err := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "install", pluginToInstall).CombinedOutput()
 		if err != nil {
+			gs.Log.Error(string(out))
 			gs.Log.Error("Error installing Logstash plugin %s: %s", key, err.Error())
 			return err
 		}
