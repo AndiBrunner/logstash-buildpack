@@ -7,9 +7,9 @@ The buildpack also includes curator, which allows to manage the indices in Elast
 
 
 
-##Use Cases
+## Use Cases
 
-###Use Case "automatic"
+### Use Case "automatic"
 
 ```
 You want to automatically connect to an Elasticsearch service and listen to Syslog messages.
@@ -21,21 +21,21 @@ a service instance with your app.
 The buildpack is only able to do a connection if exactly one service of the same service type (e.g. Elasticsearch) is bound to the app. You can set `enable-service-fallback`to `true`: in this case
 `stdout` instead of `elasticsearch` will be applied as output when no service is found. 
 
-####Example 'automatic' `Logstash` file:
+#### Example 'automatic' `Logstash` file:
 
 ```
 
 ```
 
 
-###Use Case "manual":
+### Use Case "manual":
 
 ```
 You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure
 as mentioned above. You are also responsible for the service bindings. You are still able to deliver additional plugins and certificates.
 ```
 
-####Example 'manual' `Logstash` file:
+#### Example 'manual' `Logstash` file:
 
 ```
 plugins:
@@ -49,7 +49,7 @@ curator:
 
 
 
-###Use Case "mixed":
+### Use Case "mixed":
 
 ```
 You want to use only some of pre-defined templates and you deliver also some own Logtsash config files in the expected file structure. 
@@ -57,7 +57,7 @@ Depending of which templates you use you are responsible for the service binding
 ```
 
 
-####Example 'mixed' `Logstash` file with automatic binding:
+#### Example 'mixed' `Logstash` file with automatic binding:
 
 ```
 config-templates:
@@ -126,7 +126,7 @@ The follow settings are allowed:
 * `curator.schedule`: Schedule for curator (when to run curator) in cron like syntax (https://godoc.org/github.com/robfig/cron). Format `second minute hour day_of_month month day_of_week`
 
 
-####Example `Logstash` file:
+#### Example `Logstash` file:
 
 ```
 log-level: Info
