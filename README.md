@@ -1,12 +1,240 @@
-# Cloud Foundry Go(Lang) Buildpack
+# Logstash Buildpack for Cloud Foundry
 
-[![CF Slack](https://www.google.com/s2/favicons?domain=www.slack.com) Join us on Slack](https://cloudfoundry.slack.com/messages/buildpacks/)
+**WARNING**: This is work in progress, do not use in production.
 
-A Cloud Foundry [buildpack](http://docs.cloudfoundry.org/buildpacks/) for Go(lang) based apps.
+This buildpack allows to deploy [Logstash](https://www.elastic.co/products/logstash) as an app in Cloud Foundry.
+The buildpack also includes curator, which allows to manage the indices in Elasticsearch.
 
-### Buildpack User Documentation
 
-Official buildpack documentation can be found at [go buildpack docs](http://docs.cloudfoundry.org/buildpacks/go/index.html).
+
+##Use Cases
+
+###Use Case "automatic"
+
+```
+You want to automatically connect to an Elasticsearch service and listen to Syslog messages.
+```
+
+In this case you have nothing to configure. Just deploy an empty `Logstash` file and use a Cloud Foundry `manifest.yml` file where you bind
+a service instance with your app. 
+
+The buildpack is only able to do a connection if exactly one service of the same service type (e.g. Elasticsearch) is bound to the app. You can set `enable-service-fallback`to `true`: in this case
+`stdout` instead of `elasticsearch` will be applied as output when no service is found. 
+
+####Example 'automatic' `Logstash` file:
+
+```
+
+```
+
+
+###Use Case "manual":
+
+```
+You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure
+as mentioned above. You are also responsible for the service bindings. You are still able to deliver additional plugins and certificates.
+```
+
+####Example 'manual' `Logstash` file:
+
+```
+plugins:
+- logstash-input-kafka
+- logstash-output-kafka
+certificates:
+- elasticsearch
+curator:
+  install: false
+```
+
+
+
+###Use Case "mixed":
+
+```
+You want to use only some of pre-defined templates and you deliver also some own Logtsash config files in the expected file structure. 
+Depending of which templates you use you are responsible for the service bindings or not. You are able to deliver additional plugins and certificates.
+```
+
+
+####Example 'mixed' `Logstash` file with automatic binding:
+
+```
+config-templates:
+- name: cf-output-elasticsearch
+  service-instance-name: my-elasticsearch
+plugins:
+- logstash-input-kafka
+- logstash-output-kafka
+certificates:
+- elasticsearch
+curator:
+  install: false
+```
+
+
+## Usage
+
+### Logstash Cloud Foundry App
+
+A Logstash Cloud Foundry App has the following structure:
+
+```
+.
+├── certificates
+│   └── elasticsearch.crt
+├── conf.d
+│   ├── filter.conf
+│   ├── input.conf
+│   └── output.conf
+├── curator.d
+│   ├── actions.yml
+│   └── curator.yml
+├── grok-patterns
+│   └── grok-patterns
+├── mappings
+│   └── elasticsearch-template.json
+├── plugins
+│   └── logstash-output-kafka-7.0.4.gem
+├── Logstash
+└── manifest.yml
+```
+
+#### Logstash
+
+The `Logstash` file in the root directory of the app is required. It is used by the buildpack to detect if the app is in fact a
+Logstash app. Furthermore it allows to configure the buildpack / the deployment of the app in yaml format.
+
+The follow settings are allowed:
+
+
+* `log-level`: Log level, "Info" or "Debug". Defaults to "Info"
+* `version`: Version of Logstash to be deployed. Defaults to 6.0.0
+* `cmd-args`: Additional command line arguments for Logstash. Empty by default
+* `java-opts`: Additional java arguments. Empty by default 
+* `reserved-memory`: Reserved memory in MB which should not be used by heap memory. Default is 300
+* `heap-percentage`: Percentage of memory (Total memory - reserved memory) which can be used by the heap memory: Default is 75
+* `config-check`: Shall we do a Logstash config test before startting Logtstash. Defaults to true.
+* `enable-service-fallback`: In case there is no service binded to the app in automated mode: We will fallback to stdout. Defaults to false.
+* `config-templates`: Defines which config templates should be used (array). Defaults to none  
+* `config.templates.name`: Name of a pre-defined config template
+* `config.template.service-instance-name`: Service Instance Name to which should be connected 
+* `plugins`: additional plugins to install (array of plugin names). Defaults to none.
+* `certificates`: additional certificates to install (array of certificate names, without file extension). Defaults to none.
+* `curator`: Curator settings
+* `curator.install`: Defines if Curator should be installed or not. Defaults to false.
+* `curator.schedule`: Schedule for curator (when to run curator) in cron like syntax (https://godoc.org/github.com/robfig/cron). Format `second minute hour day_of_month month day_of_week`
+
+
+####Example `Logstash` file:
+
+```
+log-level: Info
+version: 6.0.0
+cmd-args: ""
+java-opts: ""
+reserved-memory: 300
+heap-percentage: 75
+config-check: true
+enable-service-fallback: true
+config-templates:
+- name: cf-input-syslog
+- name: cf-filter-syslog
+- name: cf-output-elasticsearch
+  service-instance-name: my-elasticsearch
+- name: cf-output-stdout
+plugins:
+- logstash-input-kafka
+- logstash-output-kafka
+certificates:
+- elasticsearch
+curator:
+  install: true
+  version: ""
+  schedule: "0 5 2 * * *"
+```
+
+
+#### manifest.yml
+
+This is the [Cloud Foundry application manifest](https://docs.cloudfoundry.org/devguide/deploy-apps/manifest.html) file which is used by `cf push`.
+
+This file may be used to set the service binding
+
+
+#### conf.d folder
+In the folder `conf.d` the [Logstash](https://www.elastic.co/guide/en/logstash/current/index.html) configuration is provided. The folder is optional. All files in this directory are used as part of the Logstash configuration.
+Prior to the start of Logstash, all files in this directory are processed by [dockerize](https://github.com/jwilder/dockerize) as templates.
+This allow to update the configuration files based on the environment variables provided by Cloud Foundry (e.g. VCAP_APPLICATION, VCAP_SERVICES).
+
+The supported functions for the templates are documented in [dockerize - using templates](https://github.com/jwilder/dockerize/blob/master/README.md#using-templates)
+and [golang - template](https://golang.org/pkg/text/template/).
+
+
+#### curator.d foleder
+
+Configuration folder for [curator](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/index.html) containing two files:
+
+* `actions.yml`: General configuration of curator. For details see section [Configuration File](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/configfile.html) in the official documentation.
+* `curator.yml`: Definitions of the actions to be executed by curator. For details see section [Action File](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/actionfile.html) in the official documentation.
+
+Both files are processed with [dockerize](https://github.com/jwilder/dockerize). For details see above in the section about the folder `conf.d`.
+
+
+#### grok-patterns (and other 3rd party configuration)
+
+You may provide additional configuration files like grok-patterns or useragent regexes in additional directories. To provide the correct path within the Logstash
+configuration, it's suggested to set the paths by the template engine. Example (use all grok patterns in directory `grok-patterns`):
+
+```
+patterns_dir => "{{ .Env.HOME }}/grok-patterns"
+```
+
+#### mappings
+
+Optional folder to ship mapping templates for Elasticsearch. These mapping templates could be applied by Logstash. See [logstash-output-elasticsearch](https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html) for details.
+
+
+### Deploy App to Cloud Foundry
+
+To deploy the Logstash app to Cloud Foundry using this buildpack, use the following command:
+
+```
+cf push -b https://github.com/swisscom/swisscom/cf-buildpack-logstash.git
+```
+
+After the successful upload of the application to Cloud Foundry, you may use a *user provided service* to ship the logs of your
+application to your newly deployed Logstash application.
+
+Create the log drain:
+
+```
+cf cups logstash-log-drain -l https://USERNAME:PASSWORD@URL-OF-LOGSTASH-INSTANCE
+```
+
+Bind the log drain to your app. You could optionally bind multiple apps to one log drain:
+
+```
+cf bind-service YOUR-CF-APP-NAME logstash-log-drain
+```
+
+Restage the app to pick up the newly bound service:
+
+```
+cf restage YOUR-CF-APP-NAME
+```
+
+You find more details in the [Cloud Foundry documentation](https://docs.cloudfoundry.org/devguide/services/log-management.html)
+
+Alternatively the log drain may also be configured in your application manifest as described in chapter [Application Log Streaming](https://docs.cloudfoundry.org/services/app-log-streaming.html).
+
+## Limitations
+
+* This buildpack is only tested on Ubuntu based deployments.
+
+
+
+
 
 ### Building the Buildpack
 

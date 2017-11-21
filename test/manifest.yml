@@ -1,0 +1,5 @@
+---
+applications:
+- name: my-app
+  services:
+  - my-service-instance
