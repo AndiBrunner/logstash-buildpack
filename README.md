@@ -231,7 +231,7 @@ Alternatively the log drain may also be configured in your application manifest 
 
 
 
-### Building the Buildpack
+### Building the Buildpack (for developers and cf admins
 
 To build this buildpack, run the following command from the buildpack's directory:
 
@@ -263,7 +263,7 @@ To build this buildpack, run the following command from the buildpack's director
     cf push my_app [-b BUILDPACK_NAME]
     ```
 
-### Testing
+### Testing (TODO)
 
 Buildpacks use the [Cutlass](https://github.com/cloudfoundry/libbuildpack/cutlass) framework for running integration tests.
 
@@ -290,22 +290,7 @@ To test this buildpack, run the following command from the buildpack's directory
 
 More information can be found on Github [cutlass](https://github.com/cloudfoundry/libbuildpack/cutlass).
 
-### Contributing
-
-Find our guidelines [here](./CONTRIBUTING.md).
-
-### Help and Support
-
-Join the #buildpacks channel in our [Slack community](http://slack.cloudfoundry.org/) if you need any further assistance.
-
-### Reporting Issues
-
-Please fill out the issue template fully if you'd like to start an issue for the buildpack.
-
-### Active Development
-
-The project backlog is on [Pivotal Tracker](https://www.pivotaltracker.com/projects/1042066)
 
 ### Acknowledgements
 
-Inspired by the [Heroku buildpack](https://github.com/heroku/heroku-buildpack-go).
+Inspired by the [Heroku buildpack](https://github.com/heroku/heroku-buildpack-go) and the [Go(Lang) Buildpack](https://github.com/cloudfoundry/go-buildpack)
