@@ -11,9 +11,8 @@ The buildpack also includes curator, which allows to manage the indices in Elast
 
 ### Use Case "automatic"
 
-```
-You want to automatically connect to an Elasticsearch service and listen to Syslog messages.
-```
+
+> You want to automatically connect to an Elasticsearch service and listen to Syslog messages.
 
 In this case you have nothing to configure. Just deploy an empty `Logstash` file and use a Cloud Foundry `manifest.yml` file where you bind
 a service instance with your app. 
@@ -21,19 +20,11 @@ a service instance with your app.
 The buildpack is only able to do a connection if exactly one service of the same service type (e.g. Elasticsearch) is bound to the app. You can set `enable-service-fallback`to `true`: in this case
 `stdout` instead of `elasticsearch` will be applied as output when no service is found. 
 
-#### Example 'automatic' `Logstash` file:
-
-```
-
-```
-
 
 ### Use Case "manual":
 
-```
-You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure
-as mentioned above. You are also responsible for the service bindings. You are still able to deliver additional plugins and certificates.
-```
+> You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure as mentioned above. You are also responsible for the service bindings. You are still able to deliver additional plugins and certificates.
+
 
 #### Example 'manual' `Logstash` file:
 
@@ -51,10 +42,8 @@ curator:
 
 ### Use Case "mixed":
 
-```
-You want to use only some of pre-defined templates and you deliver also some own Logtsash config files in the expected file structure. 
-Depending of which templates you use you are responsible for the service bindings or not. You are able to deliver additional plugins and certificates.
-```
+
+> You want to use only some of pre-defined templates and you deliver also some own Logtsash config files in the expected file structure. Depending of which templates you use you are responsible for the service bindings or not. You are able to deliver additional plugins and certificates.
 
 
 #### Example 'mixed' `Logstash` file with automatic binding:
@@ -102,10 +91,9 @@ A Logstash Cloud Foundry App has the following structure:
 
 #### Logstash
 
-The `Logstash` file in the root directory of the app is required. It is used by the buildpack to detect if the app is in fact a
-Logstash app. Furthermore it allows to configure the buildpack / the deployment of the app in yaml format.
+The `Logstash` file in the root directory of the app is required. It is used by the buildpack to detect if the app is in fact a Logstash app. Furthermore it allows to configure the buildpack / the deployment of the app in yaml format.
 
-The follow settings are allowed:
+The following settings are allowed:
 
 
 * `log-level`: Log level, "Info" or "Debug". Defaults to "Info"
