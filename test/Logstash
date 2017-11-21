@@ -1,5 +1,8 @@
 config-templates:
 curator:
-  install: false 
+  install: false
+plugins:
+- x-pack
+- logstash-input-beats
 certificates:
 - elasticsearch

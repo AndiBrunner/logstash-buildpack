@@ -850,13 +850,17 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		pluginToInstall := ""
 
 		if xpackPlugin != "" {
-			pluginToInstall = "file://" + filepath.Join(gs.XPack.StagingLocation, xpackPlugin) // Prio 1 (offline installation)
+			pluginToInstall = filepath.Join(gs.XPack.StagingLocation, xpackPlugin) // Prio 1 (offline installation)
 		}else if defaultPlugin != "" {
-			pluginToInstall = "file://" + filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 2 (offline installation)
+			pluginToInstall = filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 2 (offline installation)
 		}else if userPlugin != "" {
-			pluginToInstall = "file://" + filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 3 (offline installation)
+			pluginToInstall = filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 3 (offline installation)
 		}else{
 			pluginToInstall = key // Prio 4 (online installation)
+		}
+
+		if strings.HasSuffix(pluginToInstall, ".zip"){
+			pluginToInstall = "file://" + pluginToInstall
 		}
 
 		//Install Plugin
