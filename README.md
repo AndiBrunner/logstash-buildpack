@@ -23,10 +23,10 @@ The buildpack is only able to do a connection if exactly one service of the same
 
 ### Use Case "manual":
 
-> You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure as mentioned above. You are also responsible for the service bindings. You are still able to deliver additional plugins and certificates.
+> You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure as described later. You are still able to deliver additional plugins and certificates but you are responsible for the service bindings.
 
 
-#### Example 'manual' `Logstash` file:
+#### Example `manual Logstash` file:
 
 ```
 plugins:
@@ -46,7 +46,7 @@ curator:
 > You want to use only some of pre-defined templates and you deliver also some own Logtsash config files in the expected file structure. Depending of which templates you use you are responsible for the service bindings or not. You are able to deliver additional plugins and certificates.
 
 
-#### Example 'mixed' `Logstash` file with automatic binding:
+#### Example `mixed Logstash` file with automatic binding:
 
 ```
 config-templates:
@@ -95,24 +95,22 @@ The `Logstash` file in the root directory of the app is required. It is used by 
 
 The following settings are allowed:
 
-
-* `log-level`: Log level, "Info" or "Debug". Defaults to "Info"
-* `version`: Version of Logstash to be deployed. Defaults to 6.0.0
+* `certificates`: additional certificates to install (array of certificate names, without file extension). Defaults to none.
 * `cmd-args`: Additional command line arguments for Logstash. Empty by default
-* `java-opts`: Additional java arguments. Empty by default 
-* `reserved-memory`: Reserved memory in MB which should not be used by heap memory. Default is 300
-* `heap-percentage`: Percentage of memory (Total memory - reserved memory) which can be used by the heap memory: Default is 75
 * `config-check`: Shall we do a Logstash config test before startting Logtstash. Defaults to true.
-* `enable-service-fallback`: In case there is no service binded to the app in automated mode: We will fallback to stdout. Defaults to false.
 * `config-templates`: Defines which config templates should be used (array). Defaults to none  
 * `config.templates.name`: Name of a pre-defined config template
 * `config.template.service-instance-name`: Service Instance Name to which should be connected 
-* `plugins`: additional plugins to install (array of plugin names). Defaults to none.
-* `certificates`: additional certificates to install (array of certificate names, without file extension). Defaults to none.
 * `curator`: Curator settings
 * `curator.install`: Defines if Curator should be installed or not. Defaults to false.
 * `curator.schedule`: Schedule for curator (when to run curator) in cron like syntax (https://godoc.org/github.com/robfig/cron). Format `second minute hour day_of_month month day_of_week`
-
+* `enable-service-fallback`: In case there is no service binded to the app in automated mode: We will fallback to stdout. Defaults to false.
+* `heap-percentage`: Percentage of memory (Total memory - reserved memory) which can be used by the heap memory: Default is 75
+* `java-opts`: Additional java arguments. Empty by default 
+* `log-level`: Log level, "Info" or "Debug". Defaults to "Info"
+* `plugins`: additional plugins to install (array of plugin names). Defaults to none. If you are in a disconnected environment put the plugin binaries into the plugin folder.
+* `reserved-memory`: Reserved memory in MB which should not be used by heap memory. Default is 300
+* `version`: Version of Logstash to be deployed. Defaults to 6.0.0
 
 #### Example `Logstash` file:
 
@@ -150,6 +148,10 @@ This is the [Cloud Foundry application manifest](https://docs.cloudfoundry.org/d
 This file may be used to set the service binding
 
 
+#### certificates folder
+
+Put any additional required certificate in this folder. They will be added to the java cacert truststore used by logstash. You don't have to do further configuration in the Logsstash config files. 
+
 #### conf.d folder
 In the folder `conf.d` the [Logstash](https://www.elastic.co/guide/en/logstash/current/index.html) configuration is provided. The folder is optional. All files in this directory are used as part of the Logstash configuration.
 Prior to the start of Logstash, all files in this directory are processed by [dockerize](https://github.com/jwilder/dockerize) as templates.
@@ -159,7 +161,7 @@ The supported functions for the templates are documented in [dockerize - using t
 and [golang - template](https://golang.org/pkg/text/template/).
 
 
-#### curator.d foleder
+#### curator.d foleer
 
 Configuration folder for [curator](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/index.html) containing two files:
 
@@ -171,8 +173,7 @@ Both files are processed with [dockerize](https://github.com/jwilder/dockerize).
 
 #### grok-patterns (and other 3rd party configuration)
 
-You may provide additional configuration files like grok-patterns or useragent regexes in additional directories. To provide the correct path within the Logstash
-configuration, it's suggested to set the paths by the template engine. Example (use all grok patterns in directory `grok-patterns`):
+You may provide additional configuration files like grok-patterns or useragent regexes in additional directories. To provide the correct path within the Logstash configuration, it's suggested to set the paths by the template engine. Example (use all grok patterns in directory `grok-patterns`):
 
 ```
 patterns_dir => "{{ .Env.HOME }}/grok-patterns"
@@ -181,6 +182,12 @@ patterns_dir => "{{ .Env.HOME }}/grok-patterns"
 #### mappings
 
 Optional folder to ship mapping templates for Elasticsearch. These mapping templates could be applied by Logstash. See [logstash-output-elasticsearch](https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html) for details.
+
+
+
+#### plugins
+
+Put any additional required plugin (*.gem or *.zip) in this folder. Also define them in the Logstash file. 
 
 
 ### Deploy App to Cloud Foundry
