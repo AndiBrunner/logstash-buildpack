@@ -804,11 +804,11 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		defaultPlugin := gs.GetLocalPlugin(key, defaultPlugins)
 		userPlugin := ""
 		if defaultPlugin != "" {
-			pluginToInstall = filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 1 (offline installation)
+			pluginToInstall = "file://" + filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 1 (offline installation)
 		} else {
 			userPlugin = gs.GetLocalPlugin(key, userPlugins)
 			if userPlugin != "" {
-				pluginToInstall = filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 2 (offline installation)
+				pluginToInstall = "file://" + filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 2 (offline installation)
 			}
 		}
 
