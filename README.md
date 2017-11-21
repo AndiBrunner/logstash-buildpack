@@ -14,11 +14,9 @@ The buildpack also includes curator, which allows to manage the indices in Elast
 
 > You want to automatically connect to an Elasticsearch service and listen to Syslog messages.
 
-In this case you have nothing to configure. Just deploy an empty `Logstash` file and use a Cloud Foundry `manifest.yml` file where you bind
-a service instance with your app. 
+In this case you have nothing to configure. Just deploy an empty `Logstash` file and use a Cloud Foundry `manifest.yml` file where you bind a service instance with your app. 
 
-The buildpack is only able to do a connection if exactly one service of the same service type (e.g. Elasticsearch) is bound to the app. You can set `enable-service-fallback`to `true`: in this case
-`stdout` instead of `elasticsearch` will be applied as output when no service is found. 
+The buildpack is only able to do a connection if exactly one service of the same service type (Elasticsearch) is bound to the app. The buildpack finds the service by comparing the service tags (they should be set as "elasticsearch' or "elastic"). You can set `enable-service-fallback`to `true`: in this case `stdout` instead of `elasticsearch` will be applied as output when no service is found. 
 
 
 ### Use Case "manual":
