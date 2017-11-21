@@ -16,11 +16,9 @@ templates:
   tags:
   - elasticsearch
   - elastic
-  - es
   mappings:
   - cf-base-template
   plugins:
-  - x-pack
 - name: cf-output-stdout
   type: output
   is-default: false

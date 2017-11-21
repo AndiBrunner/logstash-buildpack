@@ -50,12 +50,27 @@ type LogstashConfig struct {
 	ConfigTemplates       []ConfigTemplate `yaml:"config-templates"`
 	EnableServiceFallback bool             `yaml:"enable-service-fallback"`
 	Curator               Curator          `yaml:"curator"`
+//	XPack                 XPack            `yaml:"x-pack"`
 }
 
 type ConfigTemplate struct {
 	Name                string `yaml:"name"`
 	ServiceInstanceName string `yaml:"service-instance-name"`
 }
+
+/*
+type XPack struct {
+	Set        bool           `yaml:"-"`
+	Monitoring XPackComponent `yaml:"monitoring"`
+	Management XPackComponent `yaml:"management"`
+}
+
+type XPackComponent struct {
+	Set      bool   `yaml:"-"`
+	Enabled  bool   `yaml:"enabled"`
+	Interval string `yaml:"interval"`
+}
+*/
 
 type Curator struct {
 	Set      bool   `yaml:"-"`

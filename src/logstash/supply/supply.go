@@ -45,6 +45,7 @@ type Supplier struct {
 	OpenJdk            Dependency
 	Logstash           Dependency
 	LogstashPlugins    Dependency
+	XPack              Dependency
 	LogstashConfig     conf.LogstashConfig
 	TemplatesConfig    conf.TemplatesConfig
 	VcapApp            conf.VcapApp
@@ -107,6 +108,10 @@ func Run(gs *Supplier) error {
 	}
 
 	if err := gs.InstallDependencyOpenJdk(); err != nil {
+		return err
+	}
+
+	if err := gs.InstallDependencyXPack(); err != nil {
 		return err
 	}
 
@@ -197,6 +202,20 @@ func (gs *Supplier) EvalLogstashFile() error {
 		gs.LogstashConfig.Curator.Install = false //not really needed but maybe we will switch to true later
 	}
 
+
+/*	//Eval X-Pack
+	if gs.LogstashConfig.XPack.Monitoring.Enabled || gs.LogstashConfig.XPack.Management.Enabled{
+		gs.LogstashConfig.Plugins = append(gs.LogstashConfig.Plugins, "x-pack")
+
+		if gs.LogstashConfig.XPack.Management.Interval == ""{
+			gs.LogstashConfig.XPack.Management.Interval = "10s"
+		}
+		if gs.LogstashConfig.XPack.Monitoring.Interval == ""{
+			gs.LogstashConfig.XPack.Monitoring.Interval = "10s"
+		}
+
+	}
+*/
 	//ToDo Eval values
 	if gs.LogstashConfig.Curator.Schedule == "" {
 		gs.LogstashConfig.Curator.Schedule = "@daily"
@@ -522,6 +541,29 @@ func (gs *Supplier) InstallDependencyOpenJdk() error {
 	return nil
 }
 
+
+func (gs *Supplier) InstallDependencyXPack() error {
+
+	//Install x-pack from S3
+	gs.XPack = Dependency{Name: "x-pack", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Version} //same version as Logstash
+	if parsedVersion, err := gs.SelectDependencyVersion(gs.XPack); err != nil {
+		gs.Log.Error("Unable to determine the version of the default X-Pack: %s", err.Error())
+		return err
+	} else {
+		gs.XPack.Version = parsedVersion
+		gs.XPack.RuntimeLocation = gs.EvalRuntimeLocation(gs.XPack)
+		gs.XPack.StagingLocation = gs.EvalStagingLocation(gs.XPack)
+	}
+
+	if err := gs.InstallDependency(gs.XPack); err != nil {
+		gs.Log.Error("Error installing the default X-Pack: %s", err.Error())
+		return err
+	}
+
+	return nil
+}
+
+
 func (gs *Supplier) InstallDependencyLogstashPlugins() error {
 
 	//Install logstash-plugins from S3
@@ -794,22 +836,27 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		return nil
 	}
 
+	xPackPlugins, _ := gs.ReadLocalPlugins(gs.XPack.StagingLocation)
 	defaultPlugins, _ := gs.ReadLocalPlugins(gs.LogstashPlugins.StagingLocation)
 	userPlugins, _ := gs.ReadLocalPlugins(gs.Stager.BuildDir() + "/plugins")
 
 	gs.Log.Info("----> Installing Logstash plugins ...")
 	for key, _ := range gs.PluginsToInstall {
 		//Priorisation
-		pluginToInstall := key // Prio 3 (online installation)
+		xpackPlugin := gs.GetLocalPlugin(key, xPackPlugins)
 		defaultPlugin := gs.GetLocalPlugin(key, defaultPlugins)
-		userPlugin := ""
-		if defaultPlugin != "" {
-			pluginToInstall = "file://" + filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 1 (offline installation)
-		} else {
-			userPlugin = gs.GetLocalPlugin(key, userPlugins)
-			if userPlugin != "" {
-				pluginToInstall = "file://" + filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 2 (offline installation)
-			}
+		userPlugin := gs.GetLocalPlugin(key, userPlugins)
+
+		pluginToInstall := ""
+
+		if xpackPlugin != "" {
+			pluginToInstall = "file://" + filepath.Join(gs.XPack.StagingLocation, xpackPlugin) // Prio 1 (offline installation)
+		}else if defaultPlugin != "" {
+			pluginToInstall = "file://" + filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 2 (offline installation)
+		}else if userPlugin != "" {
+			pluginToInstall = "file://" + filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 3 (offline installation)
+		}else{
+			pluginToInstall = key // Prio 4 (online installation)
 		}
 
 		//Install Plugin
@@ -823,8 +870,8 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 
 	gs.Log.Info("----> Listing all installed Logstash plugins ...")
 
-	cmd := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list", "--verbose")
-	err := cmd.Run()
+	out, err := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list", "--verbose").CombinedOutput()
+	gs.Log.Error(string(out))
 	if err != nil {
 		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
 		return err

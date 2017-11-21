@@ -15,8 +15,14 @@ config-templates:
 - name: cf-output-elasticsearch
   service-instance-name: my-elasticsearch2
 - name: cf-output-stdout
+x-pack:
+  management:
+    enabled: false
+    collection-interval: 10s
+  monitoring:
+    enabled: false
+    collection-interval: 10s
 plugins:
-- x-pack
 - logstash-input-kafka
 - logstash-output-kafka
 certificates:
