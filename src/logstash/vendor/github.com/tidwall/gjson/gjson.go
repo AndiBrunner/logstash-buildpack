@@ -511,7 +511,7 @@ func tonum(json string) (raw string, num float64) {
 
 func tolit(json string) (raw string) {
 	for i := 1; i < len(json); i++ {
-		if json[i] <= 'a' || json[i] >= 'z' {
+		if json[i] < 'a' || json[i] > 'z' {
 			return json[:i]
 		}
 	}
@@ -1790,7 +1790,6 @@ next_key:
 					usedPaths++
 					continue
 				}
-
 				// try to match the key to the path
 				// this is spaghetti code but the idea is to minimize
 				// calls and variable assignments when comparing the
@@ -1810,6 +1809,9 @@ next_key:
 						}
 					}
 					if len(paths[j]) <= len(key) || kplen != 0 {
+						if len(paths[j]) != i {
+							goto nomatch
+						}
 						// matched and at the end of the path
 						goto match_atend
 					}
@@ -1848,6 +1850,9 @@ next_key:
 			nomatch: // noop label
 			}
 
+			if !hasMatch && i < len(json) && json[i] == '}' {
+				return i + 1, true
+			}
 			if !parsedVal {
 				if hasMatch {
 					// we found a match and the value has not been parsed yet.
@@ -2094,6 +2099,8 @@ var validate uintptr = 1
 
 // UnmarshalValidationEnabled provides the option to disable JSON validation
 // during the Unmarshal routine. Validation is enabled by default.
+//
+// Deprecated: Use encoder/json.Unmarshal instead
 func UnmarshalValidationEnabled(enabled bool) {
 	if enabled {
 		atomic.StoreUintptr(&validate, 1)
@@ -2108,6 +2115,8 @@ func UnmarshalValidationEnabled(enabled bool) {
 // gjson.Unmarshal will automatically attempt to convert JSON values to any Go
 // type. For example, the JSON string "100" or the JSON number 100 can be equally
 // assigned to Go string, int, byte, uint64, etc. This rule applies to all types.
+//
+// Deprecated: Use encoder/json.Unmarshal instead
 func Unmarshal(data []byte, v interface{}) error {
 	if atomic.LoadUintptr(&validate) == 1 {
 		_, ok := validpayload(data, 0)

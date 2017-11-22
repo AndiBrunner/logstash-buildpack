@@ -1,5 +1,5 @@
 ---
 applications:
-- name: my-app
+- name: andi-logstash
   services:
-  - my-service-instance
+    andi-elasticsearch

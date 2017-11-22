@@ -9,19 +9,39 @@ import (
 	"github.com/elazarl/goproxy"
 )
 
+func NewTLSProxy() (*httptest.Server, error) {
+	return newProxy(true)
+}
+
 func NewProxy() (*httptest.Server, error) {
+	return newProxy(false)
+}
+
+func newProxy(tls bool) (*httptest.Server, error) {
 	addr, err := publicIP()
 	if err != nil {
 		return nil, err
 	}
+	if strings.Contains(addr, ".") {
+		addr = addr + ":0"
+	} else if strings.Contains(addr, ":") {
+		addr = "[" + addr + "]:0"
+	} else {
+		return nil, fmt.Errorf("Could not convert address (%s) to address + port", addr)
+	}
+
 	ts := httptest.NewUnstartedServer(goproxy.NewProxyHttpServer())
 	ts.Listener.Close()
-	ts.Listener, err = net.Listen("tcp", addr+":0")
+	ts.Listener, err = net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
-	ts.Start()
+	if tls {
+		ts.StartTLS()
+	} else {
+		ts.Start()
+	}
 	return ts, nil
 }
 

@@ -31,7 +31,7 @@ type DeprecationDate struct {
 type ManifestEntry struct {
 	Dependency Dependency `yaml:",inline"`
 	URI        string     `yaml:"uri"`
-	MD5        string     `yaml:"md5"`
+	SHA256     string     `yaml:"sha256"`
 	CFStacks   []string   `yaml:"cf_stacks"`
 }
 
@@ -205,6 +205,10 @@ func (m *Manifest) InstallDependency(dep Dependency, outputDir string) error {
 		return err
 	}
 
+	if strings.HasSuffix(entry.URI, ".sh") {
+		return os.Rename(tmpFile, outputDir)
+	}
+
 	err = os.MkdirAll(outputDir, 0755)
 	if err != nil {
 		return err
@@ -286,7 +290,7 @@ func (m *Manifest) FetchDependency(dep Dependency, outputFile string) error {
 		return err
 	}
 
-	if m.isCached() {
+	if m.IsCached() {
 		source := filepath.Join(m.manifestRootDir, "dependencies", fmt.Sprintf("%x", md5.Sum([]byte(entry.URI))), path.Base(entry.URI))
 		exists, err := FileExists(source)
 		if err != nil {
@@ -306,7 +310,7 @@ func (m *Manifest) FetchDependency(dep Dependency, outputFile string) error {
 		return err
 	}
 
-	err = checkMD5(outputFile, entry.MD5)
+	err = checkSha256(outputFile, entry.SHA256)
 	if err != nil {
 		os.Remove(outputFile)
 		return err
@@ -351,7 +355,7 @@ func (m *Manifest) getEntry(dep Dependency) (*ManifestEntry, error) {
 	return nil, fmt.Errorf("dependency %s %s not found", dep.Name, dep.Version)
 }
 
-func (m *Manifest) isCached() bool {
+func (m *Manifest) IsCached() bool {
 	dependenciesDir := filepath.Join(m.manifestRootDir, "dependencies")
 
 	isCached, err := FileExists(dependenciesDir)

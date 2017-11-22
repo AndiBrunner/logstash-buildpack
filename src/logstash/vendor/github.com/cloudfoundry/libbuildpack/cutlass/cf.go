@@ -39,27 +39,29 @@ type cfInstance struct {
 }
 
 type App struct {
-	Name      string
-	Path      string
-	Stack     string
-	Buildpack string
-	Memory    string
-	Stdout    *bytes.Buffer
-	appGUID   string
-	env       map[string]string
-	logCmd    *exec.Cmd
+	Name       string
+	Path       string
+	Stack      string
+	Buildpacks []string
+	Memory     string
+	Disk       string
+	Stdout     *bytes.Buffer
+	appGUID    string
+	env        map[string]string
+	logCmd     *exec.Cmd
 }
 
 func New(fixture string) *App {
 	return &App{
-		Name:      filepath.Base(fixture) + "-" + RandStringRunes(20),
-		Path:      fixture,
-		Stack:     "",
-		Buildpack: "",
-		Memory:    DefaultMemory,
-		appGUID:   "",
-		env:       map[string]string{},
-		logCmd:    nil,
+		Name:       filepath.Base(fixture) + "-" + RandStringRunes(20),
+		Path:       fixture,
+		Stack:      "",
+		Buildpacks: []string{},
+		Memory:     DefaultMemory,
+		Disk:       DefaultDisk,
+		appGUID:    "",
+		env:        map[string]string{},
+		logCmd:     nil,
 	}
 }
 
@@ -225,8 +227,8 @@ func (a *App) Push() error {
 	if a.Stack != "" {
 		args = append(args, "-s", a.Stack)
 	}
-	if a.Buildpack != "" {
-		args = append(args, "-b", a.Buildpack)
+	if len(a.Buildpacks) == 1 {
+		args = append(args, "-b", a.Buildpacks[len(a.Buildpacks)-1])
 	}
 	if _, err := os.Stat(filepath.Join(a.Path, "manifest.yml")); err == nil {
 		args = append(args, "-f", filepath.Join(a.Path, "manifest.yml"))
@@ -234,8 +236,8 @@ func (a *App) Push() error {
 	if a.Memory != "" {
 		args = append(args, "-m", a.Memory)
 	}
-	if DefaultDisk != "" {
-		args = append(args, "-k", DefaultDisk)
+	if a.Disk != "" {
+		args = append(args, "-k", a.Disk)
 	}
 	command := exec.Command("cf", args...)
 	command.Stdout = DefaultStdoutStderr
@@ -253,15 +255,25 @@ func (a *App) Push() error {
 		}
 	}
 
-	a.logCmd = exec.Command("cf", "logs", a.Name)
-	a.logCmd.Stderr = DefaultStdoutStderr
-	a.Stdout = bytes.NewBuffer(nil)
-	a.logCmd.Stdout = a.Stdout
-	if err := a.logCmd.Start(); err != nil {
-		return err
+	if a.logCmd == nil {
+		a.logCmd = exec.Command("cf", "logs", a.Name)
+		a.logCmd.Stderr = DefaultStdoutStderr
+		a.Stdout = bytes.NewBuffer(nil)
+		a.logCmd.Stdout = a.Stdout
+		if err := a.logCmd.Start(); err != nil {
+			return err
+		}
 	}
 
-	command = exec.Command("cf", "start", a.Name)
+	if len(a.Buildpacks) > 1 {
+		args = []string{"v3-push", a.Name, "-p", a.Path}
+		for _, buildpack := range a.Buildpacks {
+			args = append(args, "-b", buildpack)
+		}
+	} else {
+		args = []string{"start", a.Name}
+	}
+	command = exec.Command("cf", args...)
 	command.Stdout = DefaultStdoutStderr
 	command.Stderr = DefaultStdoutStderr
 	if err := command.Run(); err != nil {
@@ -337,6 +349,18 @@ func (a *App) Files(path string) ([]string, error) {
 		return []string{}, err
 	}
 	return strings.Split(string(output), "\n"), nil
+}
+
+func (a *App) DownloadDroplet(path string) error {
+	guid, err := a.AppGUID()
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("cf", "curl", "/v2/apps/"+guid+"/droplet/download", "--output", path)
+	cmd.Stderr = DefaultStdoutStderr
+	_, err = cmd.Output()
+	return err
 }
 
 func (a *App) Destroy() error {
