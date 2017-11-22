@@ -218,7 +218,7 @@ func (gs *Supplier) EvalTestCache() error {
 
 		gs.Log.Info("----> touch file in cache dir")
 		t := time.Now()
-		out, err = exec.Command("bash", "-c", fmt.Sprintf("touch %s/%s", gs.Stager.CacheDir(), t.Format("2006-01-02_15-04-05"))).CombinedOutput()
+		out, err = exec.Command("bash", "-c", fmt.Sprintf("touch %s%s", gs.Stager.CacheDir(), t.Format("/2006-01-02_15-04-05"))).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
 			gs.Log.Warning("Error touch file in proposed cache dir:", err.Error())
