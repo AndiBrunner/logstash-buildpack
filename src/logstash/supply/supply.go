@@ -117,14 +117,6 @@ func Run(gs *Supplier) error {
 		return err
 	}
 
-	if err := gs.InstallDependencyXPack(); err != nil {
-		return err
-	}
-
-	if err := gs.InstallDependencyLogstashPlugins(); err != nil {
-		return err
-	}
-
 	//Prepare Staging Environment
 	if err := gs.PrepareStagingEnvironment(); err != nil {
 		return err
@@ -152,8 +144,31 @@ func Run(gs *Supplier) error {
 	}
 
 	//Install Logstash Plugins
-	if err := gs.InstallLogstashPlugins(); err != nil {
-		return err
+	if len(gs.PluginsToInstall) > 0 { // there are plugins to install
+
+		//Install Logstash Plugins Dependencies from S3
+		for key, _ := range gs.PluginsToInstall{
+			if strings.HasPrefix(key, "x-pack") {  //is x-pack plugin
+				if err := gs.InstallDependencyXPack(); err != nil {
+					return err
+				}
+				break
+			}
+		}
+
+		for key, _ := range gs.PluginsToInstall {
+			if !strings.HasPrefix(key, "x-pack") {//other than  x-pack plugin
+				if err := gs.InstallDependencyLogstashPlugins(); err != nil {
+					return err
+				}
+				break
+			}
+		}
+
+		//Install Logstash Plugins
+		if err := gs.InstallLogstashPlugins(); err != nil {
+			return err
+		}
 	}
 
 	if gs.LogstashConfig.ConfigCheck {
@@ -268,6 +283,15 @@ func (gs *Supplier) EvalLogstashFile() error {
 	//ToDo Eval values
 	if gs.LogstashConfig.Curator.Schedule == "" {
 		gs.LogstashConfig.Curator.Schedule = "@daily"
+	}
+
+	//Init Plugins/Templates to maps for Installing
+	gs.PluginsToInstall = make(map[string]string)
+	gs.TemplatesToInstall = []conf.Template{}
+
+	//copy the user defined plugins to the PluginsToInstall map
+	for i := 0; i < len(gs.LogstashConfig.Plugins); i++ {
+		gs.PluginsToInstall[gs.LogstashConfig.Plugins[i]] = ""
 	}
 
 	return nil
@@ -735,8 +759,6 @@ func (gs *Supplier) InstallUserCertificates() error {
 
 func (gs *Supplier) InstallTemplates() error {
 
-	gs.TemplatesToInstall = []conf.Template{}
-
 	if !gs.ConfigFilesExists && len(gs.LogstashConfig.ConfigTemplates) == 0 {
 		// install all default templates
 
@@ -831,7 +853,6 @@ func (gs *Supplier) InstallTemplates() error {
 
 	mappingsToInstall = make(map[string]string)
 	groksToInstall = make(map[string]string)
-	gs.PluginsToInstall = make(map[string]string)
 
 	for i := 0; i < len(gs.TemplatesToInstall); i++ {
 
@@ -869,21 +890,12 @@ func (gs *Supplier) InstallTemplates() error {
 		}
 	}
 
-	//default Plugins will be installed in method "InstallLogstashPlugin"
+	//default Plugins will be installed in method "InstallLogstashPlugins"
 
 	return nil
 }
 
 func (gs *Supplier) InstallLogstashPlugins() error {
-
-	//copy the user defined plugins to the PluginsToInstall map which may already have the default plugins in it
-	for i := 0; i < len(gs.LogstashConfig.Plugins); i++ {
-		gs.PluginsToInstall[gs.LogstashConfig.Plugins[i]] = ""
-	}
-
-	if len(gs.PluginsToInstall) == 0 { // no plugins to install at all
-		return nil
-	}
 
 	xPackPlugins, _ := gs.ReadLocalPlugins(gs.XPack.StagingLocation)
 	defaultPlugins, _ := gs.ReadLocalPlugins(gs.LogstashPlugins.StagingLocation)
