@@ -191,13 +191,28 @@ func (gs *Supplier) EvalTestCache() error {
 		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
 		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
 
-		gs.Log.Info("----> list cache dir")
+		gs.Log.Info("----> list proposed cache dir")
 
 		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", gs.Stager.CacheDir())).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
+			gs.Log.Warning("Error listing proposed cache dir:", err.Error())
+		}
+
+		gs.Log.Info("----> list cache dir")
+		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp/cache")).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
 			gs.Log.Warning("Error listing cache dir:", err.Error())
 		}
+
+		gs.Log.Info("----> list tmp dir")
+		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp")).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
+			gs.Log.Warning("Error listing tmp dir:", err.Error())
+		}
+
 	}
 	return nil
 }
