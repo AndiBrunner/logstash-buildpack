@@ -68,14 +68,14 @@ type Dependency struct {
 func Run(gs *Supplier) error {
 
 	//Eval Logstash file and prepare dir structure
-	if err := gs.EvalTestCache(); err != nil {
-		gs.Log.Error("Unable to test cache: %s", err.Error())
+	if err := gs.EvalLogstashFile(); err != nil {
+		gs.Log.Error("Unable to evaluate Logstash file: %s", err.Error())
 		return err
 	}
 
 	//Eval Logstash file and prepare dir structure
-	if err := gs.EvalLogstashFile(); err != nil {
-		gs.Log.Error("Unable to evaluate Logstash file: %s", err.Error())
+	if err := gs.EvalTestCache(); err != nil {
+		gs.Log.Error("Unable to test cache: %s", err.Error())
 		return err
 	}
 
