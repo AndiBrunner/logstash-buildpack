@@ -213,6 +213,7 @@ func (gs *Supplier) EvalTestCache() error {
 			gs.Log.Warning("Error listing tmp dir:", err.Error())
 		}
 
+		return errors.New("test cache done")
 	}
 	return nil
 }
