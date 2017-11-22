@@ -206,6 +206,13 @@ func (gs *Supplier) EvalTestCache() error {
 			gs.Log.Warning("Error listing cache dir:", err.Error())
 		}
 
+		gs.Log.Info("----> list buildpacksdownloads dir")
+		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp/buildpacksdownloads")).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
+			gs.Log.Warning("Error listing buildpacksdownloads dir:", err.Error())
+		}
+
 		gs.Log.Info("----> list tmp dir")
 		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp")).CombinedOutput()
 		gs.Log.Info(string(out))
@@ -213,7 +220,6 @@ func (gs *Supplier) EvalTestCache() error {
 			gs.Log.Warning("Error listing tmp dir:", err.Error())
 		}
 
-		return errors.New("test cache done")
 	}
 	return nil
 }
