@@ -13,6 +13,7 @@ import (
 	"errors"
 	"logstash/util"
 	"os/exec"
+	"time"
 )
 
 type Manifest interface {
@@ -206,6 +207,7 @@ func (gs *Supplier) EvalTestCache() error {
 		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
 		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
 
+
 		gs.Log.Info("----> list proposed cache dir")
 
 		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", gs.Stager.CacheDir())).CombinedOutput()
@@ -214,8 +216,17 @@ func (gs *Supplier) EvalTestCache() error {
 			gs.Log.Warning("Error listing proposed cache dir:", err.Error())
 		}
 
-		gs.Log.Info("----> list cache dir")
-		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp/cache")).CombinedOutput()
+		gs.Log.Info("----> touch file in cache dir")
+		t := time.Now()
+		out, err = exec.Command("bash", "-c", fmt.Sprintf("touch %s%s", gs.Stager.CacheDir(), t.Format("2006-01-02_15-04-05"))).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
+			gs.Log.Warning("Error touch file in proposed cache dir:", err.Error())
+		}
+
+
+		gs.Log.Info("----> list full cache dir")
+		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
 			gs.Log.Warning("Error listing cache dir:", err.Error())
@@ -234,6 +245,7 @@ func (gs *Supplier) EvalTestCache() error {
 		if err != nil {
 			gs.Log.Warning("Error listing tmp dir:", err.Error())
 		}
+
 
 	}
 	return nil
