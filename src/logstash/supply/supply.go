@@ -68,6 +68,12 @@ type Dependency struct {
 func Run(gs *Supplier) error {
 
 	//Eval Logstash file and prepare dir structure
+	if err := gs.EvalTestCache(); err != nil {
+		gs.Log.Error("Unable to test cache: %s", err.Error())
+		return err
+	}
+
+	//Eval Logstash file and prepare dir structure
 	if err := gs.EvalLogstashFile(); err != nil {
 		gs.Log.Error("Unable to evaluate Logstash file: %s", err.Error())
 		return err
@@ -173,6 +179,27 @@ func Run(gs *Supplier) error {
 func (gs *Supplier) BPDir() string {
 
 	return gs.BuildpackDir
+}
+
+func (gs *Supplier) EvalTestCache() error {
+
+	if strings.ToLower(gs.LogstashConfig.LogLevel) == "debug" {
+		gs.Log.Info("----> Show staging directories:")
+		gs.Log.Info("        Cache dir: %s", gs.Stager.CacheDir())
+		gs.Log.Info("        Build dir: %s", gs.Stager.BuildDir())
+		gs.Log.Info("        Buildpack dir: %s", gs.BPDir())
+		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
+		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
+
+		gs.Log.Info("----> list cache dir")
+
+		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", gs.Stager.CacheDir())).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
+			gs.Log.Warning("Error listing cache dir:", err.Error())
+		}
+	}
+	return nil
 }
 
 func (gs *Supplier) EvalLogstashFile() error {
