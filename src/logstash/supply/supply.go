@@ -13,7 +13,6 @@ import (
 	"errors"
 	"logstash/util"
 	"os/exec"
-	"time"
 )
 
 type Manifest interface {
@@ -21,6 +20,7 @@ type Manifest interface {
 	DefaultVersion(string) (libbuildpack.Dependency, error)
 	InstallDependency(libbuildpack.Dependency, string) error
 	InstallOnlyVersion(string, string) error
+	IsCached() bool
 }
 
 type Stager interface {
@@ -35,38 +35,50 @@ type Stager interface {
 }
 
 type Supplier struct {
-	Stager             Stager
-	Manifest           Manifest
-	Log                *libbuildpack.Logger
-	BuildpackDir       string
-	GTE                Dependency
-	Jq                 Dependency
-	Ofelia             Dependency
-	Curator            Dependency
-	OpenJdk            Dependency
-	Logstash           Dependency
-	LogstashPlugins    Dependency
-	XPack              Dependency
-	LogstashConfig     conf.LogstashConfig
-	TemplatesConfig    conf.TemplatesConfig
-	VcapApp            conf.VcapApp
-	VcapServices       conf.VcapServices
-	ConfigFilesExists  bool
-	CuratorFilesExists bool
-	TemplatesToInstall []conf.Template
-	PluginsToInstall   map[string]string
+	Stager               Stager
+	Manifest             Manifest
+	Log                  *libbuildpack.Logger
+	BuildpackDir         string
+	CachedDepsByLocation map[string]string
+	CachedDepsByName     map[string]string
+	GTE                  Dependency
+	Jq                   Dependency
+	Ofelia               Dependency
+	Curator              Dependency
+	OpenJdk              Dependency
+	Logstash             Dependency
+	LogstashPlugins      Dependency
+	XPack                Dependency
+	LogstashConfig       conf.LogstashConfig
+	TemplatesConfig      conf.TemplatesConfig
+	VcapApp              conf.VcapApp
+	VcapServices         conf.VcapServices
+	ConfigFilesExists    bool
+	CuratorFilesExists   bool
+	TemplatesToInstall   []conf.Template
+	PluginsToInstall     map[string]string
 }
 
 type Dependency struct {
 	Name            string
+	DirName         string
 	Version         string
 	VersionParts    int
 	ConfigVersion   string
 	RuntimeLocation string
 	StagingLocation string
+	CacheLocation   string
 }
 
 func Run(gs *Supplier) error {
+
+	//Init maps for the Installation
+	gs.PluginsToInstall = make(map[string]string)
+	gs.TemplatesToInstall = []conf.Template{}
+
+	if err := gs.ReadCachedDependencies(); err != nil {
+		return err
+	}
 
 	//Eval Logstash file and prepare dir structure
 	if err := gs.EvalLogstashFile(); err != nil {
@@ -148,8 +160,8 @@ func Run(gs *Supplier) error {
 	if len(gs.PluginsToInstall) > 0 { // there are plugins to install
 
 		//Install Logstash Plugins Dependencies from S3
-		for key, _ := range gs.PluginsToInstall{
-			if strings.HasPrefix(key, "x-pack") {  //is x-pack plugin
+		for key, _ := range gs.PluginsToInstall {
+			if strings.HasPrefix(key, "x-pack") { //is x-pack plugin
 				if err := gs.InstallDependencyXPack(); err != nil {
 					return err
 				}
@@ -158,7 +170,7 @@ func Run(gs *Supplier) error {
 		}
 
 		for key, _ := range gs.PluginsToInstall {
-			if !strings.HasPrefix(key, "x-pack") {//other than  x-pack plugin
+			if !strings.HasPrefix(key, "x-pack") { //other than  x-pack plugin
 				if err := gs.InstallDependencyLogstashPlugins(); err != nil {
 					return err
 				}
@@ -172,13 +184,17 @@ func Run(gs *Supplier) error {
 		}
 	}
 
+	//check Logstash config
 	if gs.LogstashConfig.ConfigCheck {
-		//Install Logstash Plugins
 		if err := gs.CheckLogstash(); err != nil {
 			return err
 		}
 
 	}
+
+	// Remove orphand dependencies from application cache
+	gs.RemoveUnusedDependencies()
+
 	//WriteConfigYml
 	config := map[string]string{
 		"LogstashVersion": gs.Logstash.Version,
@@ -192,14 +208,9 @@ func Run(gs *Supplier) error {
 	return nil
 }
 
-func (gs *Supplier) BPDir() string {
-
-	return gs.BuildpackDir
-}
-
 func (gs *Supplier) EvalTestCache() error {
 
-	if strings.ToLower(gs.LogstashConfig.LogLevel) == "debug" {
+	if strings.ToLower(gs.LogstashConfig.Buildpack.LogLevel) == "debug" {
 		gs.Log.Info("----> Show staging directories:")
 		gs.Log.Info("        Cache dir: %s", gs.Stager.CacheDir())
 		gs.Log.Info("        Build dir: %s", gs.Stager.BuildDir())
@@ -207,45 +218,12 @@ func (gs *Supplier) EvalTestCache() error {
 		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
 		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
 
-
-		gs.Log.Info("----> list proposed cache dir")
-
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", gs.Stager.CacheDir())).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error listing proposed cache dir:", err.Error())
-		}
-
-		gs.Log.Info("----> touch file in cache dir")
-		t := time.Now()
-		out, err = exec.Command("bash", "-c", fmt.Sprintf("touch %s%s", gs.Stager.CacheDir(), t.Format("/2006-01-02_15-04-05"))).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error touch file in proposed cache dir:", err.Error())
-		}
-
-
 		gs.Log.Info("----> list full cache dir")
-		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
+		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
 			gs.Log.Warning("Error listing cache dir:", err.Error())
 		}
-
-		gs.Log.Info("----> list buildpackdownloads dir")
-		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp/buildpackdownloads")).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error listing buildpackdownloads dir:", err.Error())
-		}
-
-		gs.Log.Info("----> list tmp dir")
-		out, err = exec.Command("bash", "-c", fmt.Sprintf("ls -al %s", "/tmp")).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error listing tmp dir:", err.Error())
-		}
-
 
 	}
 	return nil
@@ -257,7 +235,8 @@ func (gs *Supplier) EvalLogstashFile() error {
 		ConfigCheck:    false,
 		ReservedMemory: 300,
 		HeapPercentage: 90,
-		Curator:        conf.Curator{Set: true, Install: false}}
+		Curator:        conf.Curator{Set: true, Install: false},
+		Buildpack:      conf.Buildpack{Set: true, LogLevel: "Info", NoCache: false}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
 
@@ -277,29 +256,28 @@ func (gs *Supplier) EvalLogstashFile() error {
 	if !gs.LogstashConfig.Curator.Set {
 		gs.LogstashConfig.Curator.Install = false //not really needed but maybe we will switch to true later
 	}
-
-
-/*	//Eval X-Pack
-	if gs.LogstashConfig.XPack.Monitoring.Enabled || gs.LogstashConfig.XPack.Management.Enabled{
-		gs.LogstashConfig.Plugins = append(gs.LogstashConfig.Plugins, "x-pack")
-
-		if gs.LogstashConfig.XPack.Management.Interval == ""{
-			gs.LogstashConfig.XPack.Management.Interval = "10s"
-		}
-		if gs.LogstashConfig.XPack.Monitoring.Interval == ""{
-			gs.LogstashConfig.XPack.Monitoring.Interval = "10s"
-		}
-
+	if !gs.LogstashConfig.Buildpack.Set {
+		gs.LogstashConfig.Buildpack.LogLevel = "Info"
+		gs.LogstashConfig.Buildpack.NoCache = false
 	}
-*/
+
+	/*	//Eval X-Pack
+		if gs.LogstashConfig.XPack.Monitoring.Enabled || gs.LogstashConfig.XPack.Management.Enabled{
+			gs.LogstashConfig.Plugins = append(gs.LogstashConfig.Plugins, "x-pack")
+
+			if gs.LogstashConfig.XPack.Management.Interval == ""{
+				gs.LogstashConfig.XPack.Management.Interval = "10s"
+			}
+			if gs.LogstashConfig.XPack.Monitoring.Interval == ""{
+				gs.LogstashConfig.XPack.Monitoring.Interval = "10s"
+			}
+
+		}
+	*/
 	//ToDo Eval values
 	if gs.LogstashConfig.Curator.Schedule == "" {
 		gs.LogstashConfig.Curator.Schedule = "@daily"
 	}
-
-	//Init Plugins/Templates to maps for Installing
-	gs.PluginsToInstall = make(map[string]string)
-	gs.TemplatesToInstall = []conf.Template{}
 
 	//copy the user defined plugins to the PluginsToInstall map
 	for i := 0; i < len(gs.LogstashConfig.Plugins); i++ {
@@ -436,18 +414,14 @@ func (gs *Supplier) EvalEnvironment() error {
 }
 
 func (gs *Supplier) InstallDependencyGTE() error {
-	gs.GTE = Dependency{Name: "gte", VersionParts: 3, ConfigVersion: ""}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.GTE); err != nil {
-		gs.Log.Error("Unable to determine the GTE version to install: %s", err.Error())
+	var err error
+
+	gs.GTE, err = gs.NewDependency("gte", 3, "")
+	if err != nil {
 		return err
-	} else {
-		gs.GTE.Version = parsedVersion
-		gs.GTE.RuntimeLocation = gs.EvalRuntimeLocation(gs.GTE)
-		gs.GTE.StagingLocation = gs.EvalStagingLocation(gs.GTE)
 	}
 
 	if err := gs.InstallDependency(gs.GTE); err != nil {
-		gs.Log.Error("Error installing GTE: %s", err.Error())
 		return err
 	}
 
@@ -457,25 +431,21 @@ func (gs *Supplier) InstallDependencyGTE() error {
 				`, gs.GTE.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.GTE, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for GTE: %s", err.Error())
 		return err
 	}
+
 	return nil
 }
 
 func (gs *Supplier) InstallDependencyJq() error {
-	gs.Jq = Dependency{Name: "jq", VersionParts: 3, ConfigVersion: ""}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.Jq); err != nil {
-		gs.Log.Error("Unable to determine the Jq version to install: %s", err.Error())
+	var err error
+
+	gs.Jq, err = gs.NewDependency("jq", 3, "")
+	if err != nil {
 		return err
-	} else {
-		gs.Jq.Version = parsedVersion
-		gs.Jq.RuntimeLocation = gs.EvalRuntimeLocation(gs.Jq)
-		gs.Jq.StagingLocation = gs.EvalStagingLocation(gs.Jq)
 	}
 
 	if err := gs.InstallDependency(gs.Jq); err != nil {
-		gs.Log.Error("Error installing Jq: %s", err.Error())
 		return err
 	}
 
@@ -485,25 +455,19 @@ func (gs *Supplier) InstallDependencyJq() error {
 				`, gs.Jq.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Jq, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for Jq: %s", err.Error())
 		return err
 	}
 	return nil
 }
 
 func (gs *Supplier) InstallDependencyOfelia() error {
-	gs.Ofelia = Dependency{Name: "ofelia", VersionParts: 3, ConfigVersion: ""}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.Ofelia); err != nil {
-		gs.Log.Error("Unable to determine the Ofelia version to install: %s", err.Error())
+	var err error
+	gs.Ofelia, err = gs.NewDependency("ofelia", 3, "")
+	if err != nil {
 		return err
-	} else {
-		gs.Ofelia.Version = parsedVersion
-		gs.Ofelia.RuntimeLocation = gs.EvalRuntimeLocation(gs.Ofelia)
-		gs.Ofelia.StagingLocation = gs.EvalStagingLocation(gs.Ofelia)
 	}
 
 	if err := gs.InstallDependency(gs.Ofelia); err != nil {
-		gs.Log.Error("Error installing Ofelia: %s", err.Error())
 		return err
 	}
 
@@ -513,25 +477,20 @@ func (gs *Supplier) InstallDependencyOfelia() error {
 				`, gs.Ofelia.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Ofelia, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for Ofelia: %s", err.Error())
 		return err
 	}
 	return nil
 }
 
 func (gs *Supplier) InstallDependencyCurator() error {
-	gs.Curator = Dependency{Name: "curator", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Curator.Version}
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.Curator); err != nil {
-		gs.Log.Error("Unable to determine the Curator version to install: %s", err.Error())
+
+	var err error
+	gs.Curator, err = gs.NewDependency("curator", 3, "")
+	if err != nil {
 		return err
-	} else {
-		gs.Curator.Version = parsedVersion
-		gs.Curator.RuntimeLocation = gs.EvalRuntimeLocation(gs.Curator)
-		gs.Curator.StagingLocation = gs.EvalStagingLocation(gs.Curator)
 	}
 
 	if err := gs.InstallDependency(gs.Curator); err != nil {
-		gs.Log.Error("Error installing Curator: %s", err.Error())
 		return err
 	}
 
@@ -541,7 +500,6 @@ func (gs *Supplier) InstallDependencyCurator() error {
 				`, gs.Curator.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Curator, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for Curator: %s", err.Error())
 		return err
 	}
 	return nil
@@ -598,19 +556,13 @@ func (gs *Supplier) PrepareCurator() error {
 }
 
 func (gs *Supplier) InstallDependencyOpenJdk() error {
-	gs.OpenJdk = Dependency{Name: "openjdk", VersionParts: 3, ConfigVersion: ""}
-
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.OpenJdk); err != nil {
-		gs.Log.Error("Unable to determine the Java version to install: %s", err.Error())
+	var err error
+	gs.OpenJdk, err = gs.NewDependency("openjdk", 3, "")
+	if err != nil {
 		return err
-	} else {
-		gs.OpenJdk.Version = parsedVersion
-		gs.OpenJdk.RuntimeLocation = gs.EvalRuntimeLocation(gs.OpenJdk)
-		gs.OpenJdk.StagingLocation = gs.EvalStagingLocation(gs.OpenJdk)
 	}
 
 	if err := gs.InstallDependency(gs.OpenJdk); err != nil {
-		gs.Log.Error("Error installing Java: %s", err.Error())
 		return err
 	}
 
@@ -620,50 +572,37 @@ func (gs *Supplier) InstallDependencyOpenJdk() error {
 				`, gs.OpenJdk.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.OpenJdk, content); err != nil {
-		gs.Log.Error("Error writing profile.d script for JDK: %s", err.Error())
 		return err
 	}
 	return nil
 }
-
 
 func (gs *Supplier) InstallDependencyXPack() error {
 
 	//Install x-pack from S3
-	gs.XPack = Dependency{Name: "x-pack", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Version} //same version as Logstash
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.XPack); err != nil {
-		gs.Log.Error("Unable to determine the version of the default X-Pack: %s", err.Error())
+	var err error
+	gs.XPack, err = gs.NewDependency("x-pack", 3, gs.LogstashConfig.Version) //same version as Logstash
+	if err != nil {
 		return err
-	} else {
-		gs.XPack.Version = parsedVersion
-		gs.XPack.RuntimeLocation = gs.EvalRuntimeLocation(gs.XPack)
-		gs.XPack.StagingLocation = gs.EvalStagingLocation(gs.XPack)
 	}
 
 	if err := gs.InstallDependency(gs.XPack); err != nil {
-		gs.Log.Error("Error installing the default X-Pack: %s", err.Error())
 		return err
 	}
 
 	return nil
 }
 
-
 func (gs *Supplier) InstallDependencyLogstashPlugins() error {
 
 	//Install logstash-plugins from S3
-	gs.LogstashPlugins = Dependency{Name: "logstash-plugins", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Version} //same version as Logstash
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.LogstashPlugins); err != nil {
-		gs.Log.Error("Unable to determine the version of the default Logstash Plugins: %s", err.Error())
+	var err error
+	gs.LogstashPlugins, err = gs.NewDependency("logstash-plugins", 3, gs.LogstashConfig.Version) //same version as Logstash
+	if err != nil {
 		return err
-	} else {
-		gs.LogstashPlugins.Version = parsedVersion
-		gs.LogstashPlugins.RuntimeLocation = gs.EvalRuntimeLocation(gs.LogstashPlugins)
-		gs.LogstashPlugins.StagingLocation = gs.EvalStagingLocation(gs.LogstashPlugins)
 	}
 
 	if err := gs.InstallDependency(gs.LogstashPlugins); err != nil {
-		gs.Log.Error("Error installing the default Logstash Plugins: %s", err.Error())
 		return err
 	}
 
@@ -671,19 +610,13 @@ func (gs *Supplier) InstallDependencyLogstashPlugins() error {
 }
 
 func (gs *Supplier) InstallLogstash() error {
-	gs.Logstash = Dependency{Name: "logstash", VersionParts: 3, ConfigVersion: gs.LogstashConfig.Version}
-
-	if parsedVersion, err := gs.SelectDependencyVersion(gs.Logstash); err != nil {
-		gs.Log.Error("Unable to determine the Logstash version to install: %s", err.Error())
+	var err error
+	gs.Logstash, err = gs.NewDependency("logstash", 3, gs.LogstashConfig.Version)
+	if err != nil {
 		return err
-	} else {
-		gs.Logstash.Version = parsedVersion
-		gs.Logstash.RuntimeLocation = gs.EvalRuntimeLocation(gs.Logstash)
-		gs.Logstash.StagingLocation = gs.EvalStagingLocation(gs.Logstash)
 	}
 
 	if err := gs.InstallDependency(gs.Logstash); err != nil {
-		gs.Log.Error("Error installing Logstash: %s", err.Error())
 		return err
 	}
 
@@ -730,7 +663,7 @@ func (gs *Supplier) PrepareStagingEnvironment() error {
 	os.Setenv("PATH", os.Getenv("PATH")+":"+gs.OpenJdk.StagingLocation+"/bin")
 	os.Setenv("PORT", "8080") //dummy PORT: used by template processing for logstash check
 
-	if strings.ToLower(gs.LogstashConfig.LogLevel) == "debug" {
+	if strings.ToLower(gs.LogstashConfig.Buildpack.LogLevel) == "debug" {
 		gs.Log.Info(" ### JAVA_HOME %s", os.Getenv("JAVA_HOME"))
 		gs.Log.Info(" ### PATH %s", os.Getenv("PATH"))
 		gs.Log.Info(" ### LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
@@ -924,15 +857,15 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 
 		if xpackPlugin != "" {
 			pluginToInstall = filepath.Join(gs.XPack.StagingLocation, xpackPlugin) // Prio 1 (offline installation)
-		}else if defaultPlugin != "" {
+		} else if defaultPlugin != "" {
 			pluginToInstall = filepath.Join(gs.LogstashPlugins.StagingLocation, defaultPlugin) // Prio 2 (offline installation)
-		}else if userPlugin != "" {
+		} else if userPlugin != "" {
 			pluginToInstall = filepath.Join(gs.Stager.BuildDir(), "plugins", userPlugin) // Prio 3 (offline installation)
-		}else{
+		} else {
 			pluginToInstall = key // Prio 4 (online installation)
 		}
 
-		if strings.HasSuffix(pluginToInstall, ".zip"){
+		if strings.HasSuffix(pluginToInstall, ".zip") {
 			pluginToInstall = "file://" + pluginToInstall
 		}
 
@@ -998,67 +931,6 @@ func (gs *Supplier) CheckLogstash() error {
 	}
 
 	gs.Log.Info("  --> Finished Logstash config check...")
-
-	return nil
-}
-
-// GENERAL
-
-func (gs *Supplier) WriteDependencyProfileD(dependency Dependency, content string) error {
-
-	if err := gs.Stager.WriteProfileD(dependency.Name+".sh", content); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (gs *Supplier) SelectDependencyVersion(dependency Dependency) (string, error) {
-
-	dependencyVersion := os.Getenv(dependency.ConfigVersion)
-
-	if dependencyVersion == "" {
-		defaultDependencyVersion, err := gs.Manifest.DefaultVersion(dependency.Name)
-		if err != nil {
-			return "", err
-		}
-		dependencyVersion = defaultDependencyVersion.Version
-	}
-
-	return gs.parseDependencyVersion(dependency, dependencyVersion)
-}
-
-func (gs *Supplier) parseDependencyVersion(dependency Dependency, partialDependencyVersion string) (string, error) {
-	existingVersions := gs.Manifest.AllDependencyVersions(dependency.Name)
-
-	if len(strings.Split(partialDependencyVersion, ".")) < dependency.VersionParts {
-		partialDependencyVersion += ".x"
-	}
-
-	expandedVer, err := libbuildpack.FindMatchingVersion(partialDependencyVersion, existingVersions)
-	if err != nil {
-		return "", err
-	}
-
-	return expandedVer, nil
-}
-
-func (gs *Supplier) EvalRuntimeLocation(dependency Dependency) string {
-	return filepath.Join(gs.Stager.DepsIdx(), dependency.Name+"-"+dependency.Version)
-}
-
-func (gs *Supplier) EvalStagingLocation(dependency Dependency) string {
-	return filepath.Join(gs.Stager.DepDir(), dependency.Name+"-"+dependency.Version)
-}
-
-func (gs *Supplier) InstallDependency(dependency Dependency) error {
-
-	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version}
-
-	//Check Cache
-
-	if err := gs.Manifest.InstallDependency(dep, dependency.StagingLocation); err != nil {
-		return err
-	}
 
 	return nil
 }

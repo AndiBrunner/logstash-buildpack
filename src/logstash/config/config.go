@@ -38,7 +38,6 @@ func (c *TemplatesConfig) Parse(data []byte) (err error) {
 // [APP]Logstash
 type LogstashConfig struct {
 	Set                   bool             `yaml:"-"`
-	LogLevel              string           `yaml:"log-level"`
 	Version               string           `yaml:"version"`
 	Plugins               []string         `yaml:"plugins"`
 	Certificates          []string         `yaml:"certificates"`
@@ -51,6 +50,13 @@ type LogstashConfig struct {
 	EnableServiceFallback bool             `yaml:"enable-service-fallback"`
 	Curator               Curator          `yaml:"curator"`
 //	XPack                 XPack            `yaml:"x-pack"`
+	Buildpack             Buildpack        `yaml:"buildpack"`
+}
+
+type Buildpack struct {
+    Set                   bool 			   `yaml:"-"`
+	LogLevel              string           `yaml:"log-level"`
+	NoCache               bool             `yaml:"no-cache"`
 }
 
 type ConfigTemplate struct {
@@ -75,7 +81,6 @@ type XPackComponent struct {
 type Curator struct {
 	Set      bool   `yaml:"-"`
 	Install  bool   `yaml:"install"`
-	Version  string `yaml:"version"`
 	Schedule string `yaml:"schedule"`
 }
 
