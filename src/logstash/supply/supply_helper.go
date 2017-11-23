@@ -84,6 +84,9 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 
 	_, isDependencyInCache := gs.CachedDepsByLocation[dependency.DirName]
 
+	for key, value := range gs.CachedDepsByLocation{
+		gs.Log.Info("x> %s : %s", key, value)
+	}
 	gs.Log.Info("O> %s", dependency.DirName, isDependencyInCache)
 
 
