@@ -221,51 +221,51 @@ func (m *Manifest) InstallDependency(dep Dependency, outputDir string) error {
 	return ExtractTarGz(tmpFile, outputDir)
 }
 
-func (m *Manifest) InstallDependencyWithCache(dep Dependency, cacheDir string, outputDir string) (string, error) {
-	cacheFile := filepath.Join(cacheDir, fmt.Sprintf("%s-%s",dep.Name, dep.Version ))
+func (m *Manifest) InstallDependencyWithCache(dep Dependency, cacheFile string, outputDir string) error {
 
+	cacheDir := filepath.Dir(cacheFile)
 	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
-		return "", err
+		return err
 	}
 
 	entry, err := m.getEntry(dep)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if _, err := os.Stat(cacheFile); os.IsNotExist(err) { //not cached
 		m.log.BeginStep("Installing %s %s", dep.Name, dep.Version)
 		err = m.FetchDependency(dep, cacheFile)
 		if err != nil {
-			return "", err
+			return err
 		}
 	}else{
 		m.log.BeginStep("Installing %s %s from application cache", dep.Name, dep.Version)
 	}
 	err = m.warnNewerPatch(dep)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	err = m.warnEndOfLife(dep)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	err = os.MkdirAll(outputDir, 0755)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	if strings.HasSuffix(entry.URI, ".zip") {
-		return cacheFile, ExtractZip(cacheFile, outputDir)
+		return ExtractZip(cacheFile, outputDir)
 	}
 
 	if strings.HasSuffix(entry.URI, ".tar.gz") {
-		return cacheFile, ExtractTarGz(cacheFile, outputDir)
+		return ExtractTarGz(cacheFile, outputDir)
 	}
 
-	return cacheFile, os.Rename(cacheFile, outputDir)
+	return os.Rename(cacheFile, outputDir)
 }
 
 

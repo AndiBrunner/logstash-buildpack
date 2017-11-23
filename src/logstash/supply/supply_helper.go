@@ -74,13 +74,12 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		}
 	}
 
-	depFile :=""
-	if depFile, err = gs.Manifest.InstallDependencyWithCache(dep, gs.DepCacheDir, dependency.StagingLocation); err != nil {
+	if err = gs.Manifest.InstallDependencyWithCache(dep, filepath.Join(gs.DepCacheDir,dependency.DirName), dependency.StagingLocation); err != nil {
 		gs.Log.Error("Error installing '%s': %s", dependency.Name, err.Error())
 		return err
 	}
 
-	gs.CachedDeps[depFile] = "in use"
+	gs.CachedDeps[dependency.DirName] = "in use"
 
 	return nil
 }

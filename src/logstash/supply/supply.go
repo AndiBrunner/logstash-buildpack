@@ -19,7 +19,7 @@ type Manifest interface {
 	AllDependencyVersions(string) []string
 	DefaultVersion(string) (libbuildpack.Dependency, error)
 	InstallDependency(libbuildpack.Dependency, string) error
-	InstallDependencyWithCache(libbuildpack.Dependency, string, string) (string, error)
+	InstallDependencyWithCache(libbuildpack.Dependency, string, string) error
 	InstallOnlyVersion(string, string) error
 	IsCached() bool
 }
