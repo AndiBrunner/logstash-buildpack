@@ -82,9 +82,10 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 
 	//Check Cache
 
-	gs.Log.Info("O> ", dependency.DirName)
-
 	_, isDependencyInCache := gs.CachedDepsByLocation[dependency.DirName]
+
+	gs.Log.Info("O> %s", dependency.DirName, isDependencyInCache)
+
 
 	if !isDependencyInCache { //check for different version in cache and if so, delete from cache
 		orphandVersion, orphandVersionFound := gs.CachedDepsByName[dependency.Name]
