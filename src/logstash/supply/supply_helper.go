@@ -26,16 +26,23 @@ func (gs Supplier) ReadCachedDependencies() error {
 	}
 
 	for _, dirEntry := range cacheDir{
-		gs.Log.Error("cache entry %s", dirEntry)
 		if dirEntry.IsDir(){
 			dirParts := strings.Split(dirEntry.Name(),"-")
 			if len(dirParts) == 2 {
-				gs.Log.Error("1 cache entry %s", dirEntry)
 				gs.CachedDepsByLocation[dirEntry.Name()] = ""
 				gs.CachedDepsByName[dirParts[0]] = dirParts[1]
 			}
 		}
 	}
+
+	for key, value := range gs.CachedDepsByLocation{
+		gs.Log.Info("X> ", key, value)
+	}
+
+	for key, value := range gs.CachedDepsByName{
+		gs.Log.Info("O> ", key, value)
+	}
+
 	return nil
 }
 
