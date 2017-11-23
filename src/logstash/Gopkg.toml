@@ -2,10 +2,6 @@
 # for detailed Gopkg.toml documentation.
 
 [[constraint]]
-  name = "github.com/cloudfoundry/libbuildpack"
-  branch = "master"
-
-[[constraint]]
   name = "github.com/golang/mock"
   branch = "master"
 
@@ -24,3 +20,7 @@
 [[override]]
   name = "github.com/elazarl/goproxy"
   revision = "aacba83f36a55ac31cbb71c06547a328c0cd1604"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/andibrunner/libbuildpack"

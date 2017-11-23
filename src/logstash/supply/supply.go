@@ -1,7 +1,7 @@
 package supply
 
 import (
-	"github.com/cloudfoundry/libbuildpack"
+	"github.com/andibrunner/libbuildpack"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +19,7 @@ type Manifest interface {
 	AllDependencyVersions(string) []string
 	DefaultVersion(string) (libbuildpack.Dependency, error)
 	InstallDependency(libbuildpack.Dependency, string) error
+	InstallDependencyWithCache(libbuildpack.Dependency, string, string) (string, error)
 	InstallOnlyVersion(string, string) error
 	IsCached() bool
 }
@@ -39,8 +40,7 @@ type Supplier struct {
 	Manifest             Manifest
 	Log                  *libbuildpack.Logger
 	BuildpackDir         string
-	CachedDepsByLocation map[string]string
-	CachedDepsByName     map[string]string
+	CachedDeps           map[string]string
 	GTE                  Dependency
 	Jq                   Dependency
 	Ofelia               Dependency

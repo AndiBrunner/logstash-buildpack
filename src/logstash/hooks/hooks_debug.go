@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cloudfoundry/libbuildpack"
+	"github.com/andibrunner/libbuildpack"
 )
 
 type hooks1 struct {

@@ -2,7 +2,7 @@ package finalize
 
 import (
 	"fmt"
-	"github.com/cloudfoundry/libbuildpack"
+	"github.com/andibrunner/libbuildpack"
 	"golang"
 	"io"
 	"io/ioutil"
