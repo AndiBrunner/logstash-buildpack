@@ -218,13 +218,13 @@ func (gs *Supplier) EvalTestCache() error {
 		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
 		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
 
-		gs.Log.Info("----> list full cache dir")
+/*		gs.Log.Info("----> list full cache dir")
 		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
 			gs.Log.Warning("Error listing cache dir:", err.Error())
 		}
-
+*/
 	}
 	return nil
 }
