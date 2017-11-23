@@ -6,7 +6,6 @@ import (
 	"github.com/cloudfoundry/libbuildpack"
 	"path/filepath"
 	"io/ioutil"
-
 	"fmt"
 )
 
