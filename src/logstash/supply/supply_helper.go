@@ -87,6 +87,7 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 func (gs *Supplier) RemoveUnusedDependencies () error{
 
 	for cachedDep, value := range gs.CachedDeps{
+		gs.Log.Info("key: %s, value: %s", cachedDep, value)
 		if value == "" {
 			gs.Log.Info(fmt.Sprintf("--> deleting unused dependency '%s' from application cache", cachedDep))
 			os.RemoveAll(filepath.Join(gs.DepCacheDir, cachedDep))
