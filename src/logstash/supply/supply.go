@@ -73,7 +73,7 @@ type Dependency struct {
 func Run(gs *Supplier) error {
 
 	//Init maps for the Installation
-	gs.DepCacheDir = filepath(gs.Stager.CacheDir(), "dependencies")
+	gs.DepCacheDir = filepath.Join(gs.Stager.CacheDir(), "dependencies")
 	gs.PluginsToInstall = make(map[string]string)
 	gs.TemplatesToInstall = []conf.Template{}
 
