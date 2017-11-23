@@ -14,7 +14,7 @@ func (gs *Supplier) BPDir() string {
 	return gs.BuildpackDir
 }
 
-func (gs Supplier) ReadCachedDependencies() error {
+func (gs *Supplier) ReadCachedDependencies() error {
 
 	gs.CachedDepsByLocation = make(map[string]string)
 	gs.CachedDepsByName = make(map[string]string)
