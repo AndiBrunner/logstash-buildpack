@@ -102,11 +102,7 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		source := filepath.Join(gs.Stager.CacheDir(), dependency.DirName)
 		dest := filepath.Join(gs.Stager.DepDir())
 		gs.Log.Info(fmt.Sprintf("--> installing dependency '%s' from application cache", dependency.DirName))
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("cp -r %s %s", source, dest )).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error copying dir:", err.Error())
-		}
+		err := libbuildpack.CopyDirectory(source, dest)
 		if err == nil {
 			return nil //when successfull we are done, otherwise we will install with the help of the "Manifest"
 		}
@@ -127,13 +123,9 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		// copy deps dir to cache
 		source := filepath.Join(gs.Stager.DepDir(), dependency.DirName)
 		dest := filepath.Join(gs.Stager.CacheDir())
-//		libbuildpack.CopyDirectory(source, dest)
+		libbuildpack.CopyDirectory(source, dest)
 
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("cp -r %s %s", source, dest )).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error copying dir:", err.Error())
-		}
+		libbuildpack.CopyDirectory(source, dest)
 	}
 
 	return nil
