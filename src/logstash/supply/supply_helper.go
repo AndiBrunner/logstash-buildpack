@@ -100,9 +100,13 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 	if !gs.Manifest.IsCached() && isDependencyInCache { //if online or non-cached system buildpack and dependency exists in cache dir
 		//copy from cache to deps dir
 		source := filepath.Join(gs.Stager.CacheDir(), dependency.DirName)
-		dest := filepath.Join(gs.Stager.DepDir(), dependency.DirName)
+		dest := filepath.Join(gs.Stager.DepDir())
 		gs.Log.Info(fmt.Sprintf("--> installing dependency '%s' from application cache", dependency.DirName))
-		err := libbuildpack.CopyDirectory(source, dest)
+		out, err := exec.Command("bash", "-c", fmt.Sprintf("cp -r %s %s", source, dest )).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
+			gs.Log.Warning("Error copying dir:", err.Error())
+		}
 		if err == nil {
 			return nil //when successfull we are done, otherwise we will install with the help of the "Manifest"
 		}
@@ -122,16 +126,14 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 	if !gs.Manifest.IsCached(){ //if online or non-cached system buildpack
 		// copy deps dir to cache
 		source := filepath.Join(gs.Stager.DepDir(), dependency.DirName)
-		dest := filepath.Join(gs.Stager.CacheDir(), dependency.DirName)
-		libbuildpack.CopyDirectory(source, dest)
-		gs.Log.Info(fmt.Sprintf("--> dependency '%s' saved to application cache (%s to %s)", dependency.DirName,source, dest))
+		dest := filepath.Join(gs.Stager.CacheDir())
+//		libbuildpack.CopyDirectory(source, dest)
 
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
+		out, err := exec.Command("bash", "-c", fmt.Sprintf("cp -r %s %s", source, dest )).CombinedOutput()
 		gs.Log.Info(string(out))
 		if err != nil {
-			gs.Log.Warning("Error listing cache dir:", err.Error())
+			gs.Log.Warning("Error copying dir:", err.Error())
 		}
-
 	}
 
 	return nil
