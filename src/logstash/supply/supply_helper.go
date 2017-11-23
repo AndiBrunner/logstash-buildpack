@@ -110,7 +110,8 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		dest := filepath.Join(gs.Stager.DepDir())
 		gs.Log.Info(fmt.Sprintf("--> installing dependency '%s' from application cache", dependency.DirName))
 		err := libbuildpack.CopyDirectory(source, dest)
-		if err == nil {
+		if err != nil {
+		}else{
 			return nil //when successfull we are done, otherwise we will install with the help of the "Manifest"
 		}
 	}
