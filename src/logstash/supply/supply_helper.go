@@ -123,7 +123,7 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		source := filepath.Join(gs.Stager.DepDir(), dependency.DirName)
 		dest := filepath.Join(gs.Stager.CacheDir(), dependency.DirName)
 		libbuildpack.CopyDirectory(source, dest)
-		gs.Log.Info(fmt.Sprintf("--> dependency '%s' saved to application cache", dependency.DirName))
+		gs.Log.Info(fmt.Sprintf("--> dependency '%s' saved to application cache (%s to %s)", dependency.DirName,source, dest))
 	}
 
 	return nil
