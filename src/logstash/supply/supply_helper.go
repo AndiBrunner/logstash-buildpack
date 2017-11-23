@@ -25,7 +25,6 @@ func (gs *Supplier) NewDependency(name string, versionParts int, configVersion s
 		dependency.DirName = dependency.Name+"-"+dependency.Version
 		dependency.RuntimeLocation = gs.EvalRuntimeLocation(dependency)
 		dependency.StagingLocation = gs.EvalStagingLocation(dependency)
-		dependency.CacheLocation = gs.EvalCacheLocation(dependency)
 	}
 
 	return dependency, nil
@@ -44,18 +43,17 @@ func (gs *Supplier) WriteDependencyProfileD(dependency Dependency, content strin
 func (gs *Supplier) ReadCachedDependencies() error {
 
 	gs.CachedDeps = make(map[string]string)
+	os.MkdirAll(gs.DepCacheDir,0755)
 
-	cacheDir, err := ioutil.ReadDir(gs.Stager.CacheDir())
+	cacheDir, err := ioutil.ReadDir(gs.DepCacheDir)
 	if err != nil {
 		gs.Log.Error("  --> failed reading cache directory: %s", err)
 		return err
 	}
 
 	for _, dirEntry := range cacheDir{
-		if !dirEntry.IsDir(){
-			gs.Log.Info(fmt.Sprintf("--> added dependency '%s' to cache list", dirEntry.Name()))
-			gs.CachedDeps[dirEntry.Name()] = ""
-		}
+		gs.Log.Info(fmt.Sprintf("--> added dependency '%s' to cache list", dirEntry.Name()))
+		gs.CachedDeps[dirEntry.Name()] = ""
 	}
 
 	return nil
@@ -65,20 +63,19 @@ func (gs *Supplier) ReadCachedDependencies() error {
 func (gs *Supplier) InstallDependency(dependency Dependency) error {
 	var err error
 
-
 	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version}
 
 	//check if there are other cached versions of the same dependency
 	for cachedDep := range gs.CachedDeps{
-		if cachedDep != dependency.Name && strings.HasPrefix(cachedDep, dependency.Name + "-") {
+		if cachedDep != dependency.DirName && strings.HasPrefix(cachedDep, dependency.Name + "-") {
 			gs.Log.Info(fmt.Sprintf("--> deleting unused dependency version '%s' from application cache", cachedDep))
 			gs.CachedDeps[cachedDep] = "deleted"
-			os.RemoveAll(filepath.Join(gs.Stager.CacheDir(), cachedDep))
+			os.RemoveAll(filepath.Join(gs.DepCacheDir, cachedDep))
 		}
 	}
 
 	depFile :=""
-	if depFile, err = gs.Manifest.InstallDependencyWithCache(dep, gs.Stager.CacheDir(), dependency.StagingLocation); err != nil {
+	if depFile, err = gs.Manifest.InstallDependencyWithCache(dep, gs.DepCacheDir, dependency.StagingLocation); err != nil {
 		gs.Log.Error("Error installing '%s': %s", dependency.Name, err.Error())
 		return err
 	}
@@ -93,7 +90,7 @@ func (gs *Supplier) RemoveUnusedDependencies () error{
 	for cachedDep, value := range gs.CachedDeps{
 		if value == "" {
 			gs.Log.Info(fmt.Sprintf("--> deleting unused dependency '%s' from application cache", cachedDep))
-			os.RemoveAll(filepath.Join(gs.Stager.CacheDir(), cachedDep))
+			os.RemoveAll(filepath.Join(gs.DepCacheDir, cachedDep))
 		}
 	}
 	return nil
@@ -138,6 +135,3 @@ func (gs *Supplier) EvalStagingLocation(dependency Dependency) string {
 	return filepath.Join(gs.Stager.DepDir(), dependency.DirName)
 }
 
-func (gs *Supplier) EvalCacheLocation(dependency Dependency) string {
-	return filepath.Join(gs.Stager.CacheDir(), dependency.DirName)
-}

@@ -41,6 +41,7 @@ type Supplier struct {
 	Log                  *libbuildpack.Logger
 	BuildpackDir         string
 	CachedDeps           map[string]string
+	DepCacheDir			 string
 	GTE                  Dependency
 	Jq                   Dependency
 	Ofelia               Dependency
@@ -67,12 +68,12 @@ type Dependency struct {
 	ConfigVersion   string
 	RuntimeLocation string
 	StagingLocation string
-	CacheLocation   string
 }
 
 func Run(gs *Supplier) error {
 
 	//Init maps for the Installation
+	gs.DepCacheDir = filepath(gs.Stager.CacheDir(), "dependencies")
 	gs.PluginsToInstall = make(map[string]string)
 	gs.TemplatesToInstall = []conf.Template{}
 
