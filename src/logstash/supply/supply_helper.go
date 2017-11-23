@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"io/ioutil"
 	"fmt"
+	"os/exec"
 )
 
 
@@ -124,6 +125,13 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		dest := filepath.Join(gs.Stager.CacheDir(), dependency.DirName)
 		libbuildpack.CopyDirectory(source, dest)
 		gs.Log.Info(fmt.Sprintf("--> dependency '%s' saved to application cache (%s to %s)", dependency.DirName,source, dest))
+
+		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
+		gs.Log.Info(string(out))
+		if err != nil {
+			gs.Log.Warning("Error listing cache dir:", err.Error())
+		}
+
 	}
 
 	return nil
