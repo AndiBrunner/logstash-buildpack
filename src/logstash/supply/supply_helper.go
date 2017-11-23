@@ -35,14 +35,6 @@ func (gs Supplier) ReadCachedDependencies() error {
 		}
 	}
 
-	for key, value := range gs.CachedDepsByLocation{
-		gs.Log.Info("X> ", key, value)
-	}
-
-	for key, value := range gs.CachedDepsByName{
-		gs.Log.Info("O> ", key, value)
-	}
-
 	return nil
 }
 
@@ -89,6 +81,9 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 	dep := libbuildpack.Dependency{Name: dependency.Name, Version: dependency.Version}
 
 	//Check Cache
+
+	gs.Log.Info("O> ", dependency.DirName)
+
 	_, isDependencyInCache := gs.CachedDepsByLocation[dependency.DirName]
 
 	if !isDependencyInCache { //check for different version in cache and if so, delete from cache
