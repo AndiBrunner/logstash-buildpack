@@ -8,7 +8,6 @@ templates:
   is-default: true
   is-fallback: false
   groks:
-  - cf-timestamps
 - name: cf-output-elasticsearch
   type: output
   is-default: true
@@ -17,7 +16,6 @@ templates:
   - elasticsearch
   - elastic
   mappings:
-  - cf-base-template
   plugins:
 - name: cf-output-stdout
   type: output
