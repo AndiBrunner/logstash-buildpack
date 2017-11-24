@@ -10,9 +10,17 @@ import (
 
 // [BP]/defaults/templates/templates.yml
 type TemplatesConfig struct {
-	Templates []Template `yaml:"templates"`
+	Set         bool             `yaml:"-"`
+	Alias 		Alias            `yaml:"alias"`
+	Templates []Template         `yaml:"templates"`
 }
 
+type Alias struct {
+	Set                      bool   `yaml:"-"`
+	CredentialsHostField     string `yaml:"credentials-host-field"`
+	CredentialsUsernameField string `yaml:"credentials-username-field"`
+	CredentialsPasswordField string `yaml:"credentials-password-field"`
+}
 type Template struct {
 	Name                string   `yaml:"name"`
 	Type                string   `yaml:"type"`
@@ -133,15 +141,15 @@ type VcapService struct {
 
 func (s *VcapServices) WithTags(tags []string) []VcapService {
 	result := []VcapService{}
-	for _, services := range *s {
-		for i := range services {
-			service := services[i]
-			for _, st := range service.Tags {
+	for _, service_instances := range *s {
+		for i := range service_instances {
+			service_instance := service_instances[i]
+			for _, st := range service_instance.Tags {
 				found := false
 				for _, t := range tags {
 					if strings.EqualFold(t, st) {
 						found = true
-						result = append(result, service)
+						result = append(result, service_instance)
 						break
 					}
 				}
@@ -154,6 +162,21 @@ func (s *VcapServices) WithTags(tags []string) []VcapService {
 
 	return result
 }
+
+func (s *VcapServices) UserProvided() []VcapService {
+	result := []VcapService{}
+	for service , service_instances := range *s {
+		if service == "user-provided" {
+			for i := range service_instances {
+				service_instance := service_instances[i]
+				result = append(result, service_instance)
+			}
+		}
+	}
+
+	return result
+}
+
 
 func (c *VcapServices) Parse(data []byte) (err error) {
 	defer func() {

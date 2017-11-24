@@ -231,13 +231,20 @@ func (gs *Supplier) EvalTestCache() error {
 }
 
 func (gs *Supplier) EvalLogstashFile() error {
+	const configCheck = false
+	const reservedMemory  = 300
+	const heapPersentage = 90
+	const logLevel = "Info"
+	const noCache = false
+	const curatorInstall = false
+
 	gs.LogstashConfig = conf.LogstashConfig{
 		Set:            true,
-		ConfigCheck:    false,
-		ReservedMemory: 300,
-		HeapPercentage: 90,
-		Curator:        conf.Curator{Set: true, Install: false},
-		Buildpack:      conf.Buildpack{Set: true, LogLevel: "Info", NoCache: false}}
+		ConfigCheck:    configCheck,
+		ReservedMemory: reservedMemory,
+		HeapPercentage: heapPersentage,
+		Curator:        conf.Curator{Set: true, Install: curatorInstall},
+		Buildpack:      conf.Buildpack{Set: true, LogLevel: logLevel, NoCache: noCache}}
 
 	logstashFile := filepath.Join(gs.Stager.BuildDir(), "Logstash")
 
@@ -250,16 +257,16 @@ func (gs *Supplier) EvalLogstashFile() error {
 	}
 
 	if !gs.LogstashConfig.Set {
-		gs.LogstashConfig.HeapPercentage = 90
-		gs.LogstashConfig.ReservedMemory = 300
-		gs.LogstashConfig.ConfigCheck = true
+		gs.LogstashConfig.HeapPercentage = heapPersentage
+		gs.LogstashConfig.ReservedMemory = reservedMemory
+		gs.LogstashConfig.ConfigCheck = configCheck
 	}
 	if !gs.LogstashConfig.Curator.Set {
-		gs.LogstashConfig.Curator.Install = false //not really needed but maybe we will switch to true later
+		gs.LogstashConfig.Curator.Install = curatorInstall //not really needed but maybe we will switch to true later
 	}
 	if !gs.LogstashConfig.Buildpack.Set {
-		gs.LogstashConfig.Buildpack.LogLevel = "Info"
-		gs.LogstashConfig.Buildpack.NoCache = false
+		gs.LogstashConfig.Buildpack.LogLevel = logLevel
+		gs.LogstashConfig.Buildpack.NoCache = noCache
 	}
 
 	/*	//Eval X-Pack
@@ -350,8 +357,15 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 }
 
 func (gs *Supplier) EvalTemplatesFile() error {
-	gs.TemplatesConfig = conf.TemplatesConfig{}
 
+	const credHostField = "host"
+	const credUsernameField = "username"
+	const credPasswordField = "password"
+
+	gs.TemplatesConfig = conf.TemplatesConfig{
+		Set:            true,
+		Alias:        conf.Alias{Set: true, CredentialsHostField: credHostField, CredentialsUsernameField: credUsernameField, CredentialsPasswordField: credPasswordField},
+    }
 	templateFile := filepath.Join(gs.BPDir(), "defaults/templates/templates.yml")
 
 	data, err := ioutil.ReadFile(templateFile)
@@ -360,6 +374,11 @@ func (gs *Supplier) EvalTemplatesFile() error {
 	}
 	if err := gs.TemplatesConfig.Parse(data); err != nil {
 		return err
+	}
+	if !gs.TemplatesConfig.Alias.Set {
+		gs.TemplatesConfig.Alias.CredentialsHostField = credHostField
+		gs.TemplatesConfig.Alias.CredentialsUsernameField = credUsernameField
+		gs.TemplatesConfig.Alias.CredentialsPasswordField = credPasswordField
 	}
 
 	return nil
@@ -714,9 +733,18 @@ func (gs *Supplier) InstallTemplates() error {
 			if t.IsDefault {
 
 				if len(t.Tags) > 0 {
-					servicesWithTag := gs.VcapServices.WithTags(t.Tags)
+					vcapServices := []conf.VcapService{}
+					vcapServicesWithTag := gs.VcapServices.WithTags(t.Tags)
+					vcapServicesUserProvided := gs.VcapServices.UserProvided()
 
-					if len(servicesWithTag) == 0 {
+					if len(vcapServicesWithTag) > 0 {
+						vcapServices = append(vcapServices, vcapServicesWithTag...)
+					}
+					if len(vcapServicesUserProvided) > 0 {
+						vcapServices = append(vcapServices, vcapServicesUserProvided...)
+					}
+
+					if len(vcapServices) == 0 {
 
 						if gs.LogstashConfig.EnableServiceFallback {
 							ti := t
@@ -726,11 +754,11 @@ func (gs *Supplier) InstallTemplates() error {
 						} else {
 							return errors.New("no service found for template")
 						}
-					} else if len(servicesWithTag) > 1 {
+					} else if len(vcapServices) > 1 {
 						return errors.New("more than one service found for template")
 					} else {
 						ti := t
-						ti.ServiceInstanceName = servicesWithTag[0].Name
+						ti.ServiceInstanceName = vcapServicesUserProvided[0].Name
 						gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
 					}
 				} else {
@@ -782,6 +810,10 @@ func (gs *Supplier) InstallTemplates() error {
 	for _, ti := range gs.TemplatesToInstall {
 
 		os.Setenv("SERVICE_INSTANCE_NAME", ti.ServiceInstanceName)
+		os.Setenv("CREDENTIALS_HOST_FIELD", ti.ServiceInstanceName)
+		os.Setenv("CREDENTIALS_HOST_USERNAME_FIELD", ti.ServiceInstanceName)
+		os.Setenv("CREDENTIALS_HOST_PASSWORD_FIELD", ti.ServiceInstanceName)
+
 		templateFile := filepath.Join(gs.BPDir(), "defaults/templates/", ti.Name+".conf")
 		destFile := filepath.Join(gs.Stager.DepDir(), "conf.d", ti.Name+".conf")
 

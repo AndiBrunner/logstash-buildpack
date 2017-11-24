@@ -1,4 +1,8 @@
 ---
+alias:
+  credentials-host-field: host
+  credentials-username-field: username
+  credentials-password-field: password
 templates:
 - name: cf-input-syslog
   type: input
