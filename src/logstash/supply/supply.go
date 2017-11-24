@@ -811,8 +811,8 @@ func (gs *Supplier) InstallTemplates() error {
 
 		os.Setenv("SERVICE_INSTANCE_NAME", ti.ServiceInstanceName)
 		os.Setenv("CREDENTIALS_HOST_FIELD", gs.TemplatesConfig.Alias.CredentialsHostField)
-		os.Setenv("CREDENTIALS_HOST_USERNAME_FIELD", gs.TemplatesConfig.Alias.CredentialsUsernameField)
-		os.Setenv("CREDENTIALS_HOST_PASSWORD_FIELD", gs.TemplatesConfig.Alias.CredentialsPasswordField)
+		os.Setenv("CREDENTIALS_USERNAME_FIELD", gs.TemplatesConfig.Alias.CredentialsUsernameField)
+		os.Setenv("CREDENTIALS_PASSWORD_FIELD", gs.TemplatesConfig.Alias.CredentialsPasswordField)
 
 		templateFile := filepath.Join(gs.BPDir(), "defaults/templates/", ti.Name+".conf")
 		destFile := filepath.Join(gs.Stager.DepDir(), "conf.d", ti.Name+".conf")
