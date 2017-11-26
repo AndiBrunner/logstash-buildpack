@@ -20,13 +20,19 @@ default_versions:
 dependencies:
 - name: logstash
   version: 6.0.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-6.0.0.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/logstash-6.0.0.tar.gz
+  sha256: f98252002d15aa7547bc8beea4a18f376ac01d1bab4d2ff9da6acbcdc2f21233
+  cf_stacks:
+  - cflinuxfs2
+- name: logstash
+  version: 6.1.0
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/logstash-6.0.0.tar.gz
   sha256: f98252002d15aa7547bc8beea4a18f376ac01d1bab4d2ff9da6acbcdc2f21233
   cf_stacks:
   - cflinuxfs2
 - name: logstash-plugins
   version: 6.0.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/logstash-plugins-6.0.0.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/logstash-plugins-6.0.0.tar.gz
   sha256: fe331430fc6160e6646bc202bda3c4c9bc951c95f3fc5723f7c12aa381ef392b
   cf_stacks:
   - cflinuxfs2
@@ -38,31 +44,31 @@ dependencies:
   - cflinuxfs2
 - name: openjdk
   version: 1.8.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/openjdk-1.8.0_91.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/openjdk-1.8.0_91.tar.gz
   sha256: 98190b550ebcaf021895b45d24955e730e77de2b1aa9b6139aa6fca46d6b0e9a
   cf_stacks:
   - cflinuxfs2
 - name: curator
   version: 5.0.4
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/curator-5.0.4-python-3.6.1.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/curator-5.0.4-python-3.6.1.tar.gz
   sha256: 229691d0d5367c10b56a6d2971af4132fcba56ac70eab84dce388636fd08eb71
   cf_stacks:
   - cflinuxfs2
 - name: gte
   version: 1.0.1
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/gte-1.0.1.tar.gz
-  sha256: 16fc4d0f657e8fda6085376cff8cab1b4808fc4338b4e195163f70c0a8b8ab58
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/gte-1.0.1.tar.gz
+  sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
   cf_stacks:
   - cflinuxfs2
 - name: jq
   version: 1.5
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/jq-1.5.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/jq-1.5.tar.gz
   sha256: 49a84557c7e7541d49e2dda5e2738eea61199edaecf8139f99a78dae0dd3f7a6
   cf_stacks:
   - cflinuxfs2
 - name: ofelia
   version: 0.2.2
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/logstash-buildpack/ofelia_0.2.2.tar.gz
+  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/ofelia_0.2.2.tar.gz
   sha256: 1920a91ce5cd7ad9a11ec40693baa09ec26ff0f27f8827edaa7606cf667e3270
   cf_stacks:
   - cflinuxfs2

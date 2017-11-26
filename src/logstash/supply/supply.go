@@ -450,7 +450,7 @@ func (gs *Supplier) InstallDependencyGTE() error {
 				PATH=$PATH:$GTE_HOME
 				`, gs.GTE.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.GTE, content); err != nil {
+	if err := gs.WriteDependencyProfileD(gs.GTE.Name, content); err != nil {
 		return err
 	}
 
@@ -474,7 +474,7 @@ func (gs *Supplier) InstallDependencyJq() error {
 				PATH=$PATH:$JQ_HOME
 				`, gs.Jq.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.Jq, content); err != nil {
+	if err := gs.WriteDependencyProfileD(gs.Jq.Name, content); err != nil {
 		return err
 	}
 	return nil
@@ -496,7 +496,7 @@ func (gs *Supplier) InstallDependencyOfelia() error {
 				PATH=$PATH:$OFELIA_HOME
 				`, gs.Ofelia.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.Ofelia, content); err != nil {
+	if err := gs.WriteDependencyProfileD(gs.Ofelia.Name, content); err != nil {
 		return err
 	}
 	return nil
@@ -519,7 +519,7 @@ func (gs *Supplier) InstallDependencyCurator() error {
 				PATH=${CURATOR_HOME}/python3/bin:${CURATOR_HOME}/curator/bin:${PATH}
 				`, gs.Curator.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.Curator, content); err != nil {
+	if err := gs.WriteDependencyProfileD(gs.Curator.Name, content); err != nil {
 		return err
 	}
 	return nil
@@ -591,7 +591,7 @@ func (gs *Supplier) InstallDependencyOpenJdk() error {
 				PATH=$PATH:$JAVA_HOME/bin
 				`, gs.OpenJdk.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.OpenJdk, content); err != nil {
+	if err := gs.WriteDependencyProfileD(gs.OpenJdk.Name, content); err != nil {
 		return err
 	}
 	return nil
@@ -662,7 +662,7 @@ func (gs *Supplier) InstallLogstash() error {
 		curatorEnabled,
 		gs.Logstash.RuntimeLocation))
 
-	if err := gs.WriteDependencyProfileD(gs.Logstash, content); err != nil {
+	if err := gs.WriteDependencyProfileD(gs.Logstash.Name, content); err != nil {
 		gs.Log.Error("Error writing profile.d script for Logstash: %s", err.Error())
 		return err
 	}

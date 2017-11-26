@@ -31,10 +31,10 @@ func (gs *Supplier) NewDependency(name string, versionParts int, configVersion s
 }
 
 
-func (gs *Supplier) WriteDependencyProfileD(dependency Dependency, content string) error {
+func (gs *Supplier) WriteDependencyProfileD(dependencyName string, content string) error {
 
-	if err := gs.Stager.WriteProfileD(dependency.Name+".sh", content); err != nil {
-		gs.Log.Error("Error writing profile.d script for %s: %s", dependency.Name,err.Error())
+	if err := gs.Stager.WriteProfileD(dependencyName+".sh", content); err != nil {
+		gs.Log.Error("Error writing profile.d script for %s: %s", dependencyName,err.Error())
 		return err
 	}
 	return nil
