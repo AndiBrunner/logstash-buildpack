@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"io/ioutil"
 	"fmt"
+	"logstash/util"
 )
 
 
@@ -42,6 +43,10 @@ func (gs *Supplier) WriteDependencyProfileD(dependencyName string, content strin
 
 func (gs *Supplier) ReadCachedDependencies() error {
 
+	if gs.LogstashConfig.Buildpack.NoCache {
+		util.RemoveAllContents(gs.Stager.CacheDir())
+	}
+
 	gs.CachedDeps = make(map[string]string)
 	os.MkdirAll(gs.DepCacheDir,0755)
 
@@ -52,7 +57,7 @@ func (gs *Supplier) ReadCachedDependencies() error {
 	}
 
 	for _, dirEntry := range cacheDir{
-		gs.Log.Info(fmt.Sprintf("--> added dependency '%s' to cache list", dirEntry.Name()))
+		gs.Log.Debug(fmt.Sprintf("--> added dependency '%s' to cache list", dirEntry.Name()))
 		gs.CachedDeps[dirEntry.Name()] = ""
 	}
 
@@ -68,7 +73,7 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 	//check if there are other cached versions of the same dependency
 	for cachedDep := range gs.CachedDeps{
 		if cachedDep != dependency.DirName && strings.HasPrefix(cachedDep, dependency.Name + "-") {
-			gs.Log.Info(fmt.Sprintf("--> deleting unused dependency version '%s' from application cache", cachedDep))
+			gs.Log.Debug(fmt.Sprintf("--> deleting unused dependency version '%s' from application cache", cachedDep))
 			gs.CachedDeps[cachedDep] = "deleted"
 			os.RemoveAll(filepath.Join(gs.DepCacheDir, cachedDep))
 		}
@@ -79,6 +84,10 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 		return err
 	}
 
+	if gs.LogstashConfig.Buildpack.NoCache {
+		os.RemoveAll(filepath.Join(gs.DepCacheDir,dependency.DirName))
+	}
+
 	gs.CachedDeps[dependency.DirName] = "in use"
 
 	return nil
@@ -87,9 +96,8 @@ func (gs *Supplier) InstallDependency(dependency Dependency) error {
 func (gs *Supplier) RemoveUnusedDependencies () error{
 
 	for cachedDep, value := range gs.CachedDeps{
-	//	gs.Log.Info("key: %s, value: %s", cachedDep, value)
 		if value == "" {
-			gs.Log.Info(fmt.Sprintf("--> deleting unused dependency '%s' from application cache", cachedDep))
+			gs.Log.Debug(fmt.Sprintf("--> deleting unused dependency '%s' from application cache", cachedDep))
 			os.RemoveAll(filepath.Join(gs.DepCacheDir, cachedDep))
 		}
 	}
@@ -99,7 +107,7 @@ func (gs *Supplier) RemoveUnusedDependencies () error{
 
 func (gs *Supplier) SelectDependencyVersion(dependency Dependency) (string, error) {
 
-	dependencyVersion := os.Getenv(dependency.ConfigVersion)
+	dependencyVersion := dependency.ConfigVersion
 
 	if dependencyVersion == "" {
 		defaultDependencyVersion, err := gs.Manifest.DefaultVersion(dependency.Name)

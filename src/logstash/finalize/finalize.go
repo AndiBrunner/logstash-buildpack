@@ -121,6 +121,10 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 					echo "--> using LS_CMD_ARGS=\"$LS_CMD_ARGS\""
 				fi
 
+				if [ -n "$LS_DO_SLEEP" ] ; then
+					sleep 3600
+				fi
+
 				if [ -n "$LS_CURATOR_ENABLED" ] ; then
 					echo "--> running Curator once to create the Logstash index for today"
 					echo "    !! Curator is currently disabled !!"

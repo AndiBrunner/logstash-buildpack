@@ -77,22 +77,29 @@ func Run(gs *Supplier) error {
 	gs.PluginsToInstall = make(map[string]string)
 	gs.TemplatesToInstall = []conf.Template{}
 
-	if err := gs.ReadCachedDependencies(); err != nil {
-		return err
-	}
-
 	//Eval Logstash file and prepare dir structure
 	if err := gs.EvalLogstashFile(); err != nil {
 		gs.Log.Error("Unable to evaluate Logstash file: %s", err.Error())
 		return err
 	}
 
-	//Eval Logstash file and prepare dir structure
+	//Set log level
+	if strings.ToLower(gs.LogstashConfig.Buildpack.LogLevel) == "debug" {
+		os.Setenv("BP_DEBUG", "true")
+	}
+
+	//Init Cache
+	if err := gs.ReadCachedDependencies(); err != nil {
+		return err
+	}
+
+	//Show Depug Infos
 	if err := gs.EvalTestCache(); err != nil {
 		gs.Log.Error("Unable to test cache: %s", err.Error())
 		return err
 	}
 
+	//Prepare dir structure
 	if err := gs.PrepareAppDirStructure(); err != nil {
 		gs.Log.Error("Unable to prepare directory structure for the app: %s", err.Error())
 		return err
@@ -212,20 +219,13 @@ func Run(gs *Supplier) error {
 func (gs *Supplier) EvalTestCache() error {
 
 	if strings.ToLower(gs.LogstashConfig.Buildpack.LogLevel) == "debug" {
-		gs.Log.Info("----> Show staging directories:")
-		gs.Log.Info("        Cache dir: %s", gs.Stager.CacheDir())
-		gs.Log.Info("        Build dir: %s", gs.Stager.BuildDir())
-		gs.Log.Info("        Buildpack dir: %s", gs.BPDir())
-		gs.Log.Info("        Dependency dir: %s", gs.Stager.DepDir())
-		gs.Log.Info("        DepsIdx: %s", gs.Stager.DepsIdx())
+		gs.Log.Debug("----> Show staging directories:")
+		gs.Log.Debug("        Cache dir: %s", gs.Stager.CacheDir())
+		gs.Log.Debug("        Build dir: %s", gs.Stager.BuildDir())
+		gs.Log.Debug("        Buildpack dir: %s", gs.BPDir())
+		gs.Log.Debug("        Dependency dir: %s", gs.Stager.DepDir())
+		gs.Log.Debug("        DepsIdx: %s", gs.Stager.DepsIdx())
 
-/*		gs.Log.Info("----> list full cache dir")
-		out, err := exec.Command("bash", "-c", fmt.Sprintf("ls -Ral %s", "/tmp/cache")).CombinedOutput()
-		gs.Log.Info(string(out))
-		if err != nil {
-			gs.Log.Warning("Error listing cache dir:", err.Error())
-		}
-*/
 	}
 	return nil
 }
@@ -644,6 +644,12 @@ func (gs *Supplier) InstallLogstash() error {
 	if gs.LogstashConfig.Curator.Install {
 		curatorEnabled = "enabled"
 	}
+
+	sleepCommand := ""
+	if gs.LogstashConfig.Buildpack.DoSleepCommand {
+		sleepCommand = "yes"
+	}
+
 	content := util.TrimLines(fmt.Sprintf(`
 			export LS_BP_RESERVED_MEMORY=%d
 			export LS_BP_HEAP_PERCENTAGE=%d
@@ -651,6 +657,7 @@ func (gs *Supplier) InstallLogstash() error {
 			export LS_CMD_ARGS=%s
 			export LS_ROOT=$DEPS_DIR/%s
 			export LS_CURATOR_ENABLED=%s
+			export LS_DO_SLEEP=%s
 			export LOGSTASH_HOME=$DEPS_DIR/%s
 			PATH=$PATH:$LOGSTASH_HOME/bin
 			`,
@@ -660,6 +667,7 @@ func (gs *Supplier) InstallLogstash() error {
 		gs.LogstashConfig.CmdArgs,
 		gs.Stager.DepsIdx(),
 		curatorEnabled,
+		sleepCommand,
 		gs.Logstash.RuntimeLocation))
 
 	if err := gs.WriteDependencyProfileD(gs.Logstash.Name, content); err != nil {
@@ -684,9 +692,9 @@ func (gs *Supplier) PrepareStagingEnvironment() error {
 	os.Setenv("PORT", "8080") //dummy PORT: used by template processing for logstash check
 
 	if strings.ToLower(gs.LogstashConfig.Buildpack.LogLevel) == "debug" {
-		gs.Log.Info(" ### JAVA_HOME %s", os.Getenv("JAVA_HOME"))
-		gs.Log.Info(" ### PATH %s", os.Getenv("PATH"))
-		gs.Log.Info(" ### LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
+		gs.Log.Debug(" ### JAVA_HOME %s", os.Getenv("JAVA_HOME"))
+		gs.Log.Debug(" ### PATH %s", os.Getenv("PATH"))
+		gs.Log.Debug(" ### LS_JAVA_OPTS %s", os.Getenv("LS_JAVA_OPTS"))
 	}
 	return nil
 }
