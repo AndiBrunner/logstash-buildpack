@@ -766,7 +766,7 @@ func (gs *Supplier) InstallTemplates() error {
 						return errors.New("more than one service found for template")
 					} else {
 						ti := t
-						ti.ServiceInstanceName = vcapServicesUserProvided[0].Name
+						ti.ServiceInstanceName = vcapServices[0].Name
 						gs.TemplatesToInstall = append(gs.TemplatesToInstall, ti)
 					}
 				} else {
