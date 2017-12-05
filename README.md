@@ -9,6 +9,12 @@ The buildpack also includes curator, which allows to manage the indices in Elast
 
 ## Use Cases
 
+
+## Use Cases
+
+<img src="images/use_cases.png" alt="Use CAses" width="600">
+
+
 ### Use Case "automatic"
 
 
@@ -109,6 +115,31 @@ The following settings are allowed:
 * `plugins`: additional plugins to install (array of plugin names). Defaults to none. If you are in a disconnected environment put the plugin binaries into the plugin folder.
 * `reserved-memory`: Reserved memory in MB which should not be used by heap memory. Default is 300
 * `version`: Version of Logstash to be deployed. Defaults to 6.0.0
+
+
+##### Currently available templates:
+
+
+```
+cf-input-syslog:
+- defines listening ports for tcp and udp 
+- type syslog
+- default in automatic mode
+
+cf-filter-syslog:
+- prepares the logstash events according to the syslog standard RFC 5424
+- connects to cf elasticsearch service-instance 
+- default in automatic mode
+
+cf-output-elasticsearch:
+- connects to the elasticsearch service-instance 
+- writes the logstash events to elasticsearch
+- default in automatic mode
+
+cf-output-stdout:
+- writes the logstash events to standard output
+```
+
 
 #### Example `Logstash` file:
 
