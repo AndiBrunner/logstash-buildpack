@@ -7,8 +7,6 @@ The buildpack also includes curator, which allows to manage the indices in Elast
 
 
 
-## Use Cases
-
 
 ## Use Cases
 
