@@ -192,6 +192,11 @@ func Run(gs *Supplier) error {
 		}
 	}
 
+	//Install Logstash Plugins
+	if err := gs.ListLogstashPlugins(); err != nil {
+		return err
+	}
+
 	//check Logstash config
 	if gs.LogstashConfig.ConfigCheck {
 		if err := gs.CheckLogstash(); err != nil {
@@ -881,6 +886,18 @@ func (gs *Supplier) InstallTemplates() error {
 	return nil
 }
 
+func (gs *Supplier) ListLogstashPlugins() error {
+	gs.Log.Info("----> Listing all installed Logstash plugins ...")
+
+	out, err := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list", "--verbose").CombinedOutput()
+	gs.Log.Info(string(out))
+	if err != nil {
+		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
+		return err
+	}
+	return nil
+}
+
 func (gs *Supplier) InstallLogstashPlugins() error {
 
 	xPackPlugins, _ := gs.ReadLocalPlugins(gs.XPack.StagingLocation)
@@ -919,14 +936,6 @@ func (gs *Supplier) InstallLogstashPlugins() error {
 		}
 	}
 
-	gs.Log.Info("----> Listing all installed Logstash plugins ...")
-
-	out, err := exec.Command(fmt.Sprintf("%s/bin/logstash-plugin", gs.Logstash.StagingLocation), "list", "--verbose").CombinedOutput()
-	gs.Log.Info(string(out))
-	if err != nil {
-		gs.Log.Error("Error listing all installed Logstash plugins: %s", err.Error())
-		return err
-	}
 	return nil
 }
 
