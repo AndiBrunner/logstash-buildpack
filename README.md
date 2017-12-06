@@ -190,7 +190,7 @@ The supported functions for the templates are documented in [dockerize - using t
 and [golang - template](https://golang.org/pkg/text/template/).
 
 
-#### curator.d foleer
+#### curator.d folder
 
 Configuration folder for [curator](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/index.html) containing two files:
 
