@@ -1,0 +1,4 @@
+SYSLOG3164 <%{NONNEGINT:priority}>%{TIMESTAMP_ISO8601:syslog_timestamp} %{SYSLOGHOST:syslog_hostname} %{DATA:syslog_program}(?:\[%{POSINT:syslog_pid}\])?: %{GREEDYDATA:syslog_message}
+
+CFPREFIX %{SYSLOG5424PRI}%{NONNEGINT:syslog5424_ver} +(?:%{TIMESTAMP_ISO8601:syslog5424_ts}|-) +(?:%{HOSTNAME:syslog5424_host}|-) +(?:%{NOTSPACE:syslog5424_app}|-) +(?:%{NOTSPACE:syslog5424_proc}|-) +(?:%{WORD:syslog5424_msgid}|-) +(?:%{SYSLOG5424SD:syslog5424_sd}|-|)
+RTRPATTERN %{URIHOST:server}%{SPACE}-%{SPACE}\[(?<timestamp>%{DATE}\:%{TIME} %{ISO8601_TIMEZONE})\]%{SPACE}\"%{WORD:verb} %{URIPATHPARAM:request} HTTP/%{NUMBER:httpversion}\"%{SPACE}%{NUMBER:response}%{SPACE}%{NUMBER:length}%{SPACE}%{NUMBER:bytes}%{SPACE}%{QS:referrer}%{SPACE}%{QS:agent}%{SPACE}%{HOSTPORT:before}%{SPACE}x_forwarded_for:"%{DATA:clientip1}"%{SPACE}x_forwarded_proto:"%{DATA:clientip2}"%{SPACE}vcap\_request\_id\:%{UUID:vcap_request_id} response_time\:%{NUMBER:response_time}%{SPACE}app_id\:%{UUID:app_id}

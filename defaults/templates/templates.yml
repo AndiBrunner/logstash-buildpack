@@ -12,6 +12,7 @@ templates:
   is-default: true
   is-fallback: false
   groks:
+  - cf-grok-patterns
 - name: cf-output-elasticsearch
   type: output
   is-default: true
@@ -20,6 +21,7 @@ templates:
   - elasticsearch
   - elastic
   mappings:
+  - cf-mapping-elasticsearch
   plugins:
 - name: cf-output-stdout
   type: output
