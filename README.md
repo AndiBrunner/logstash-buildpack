@@ -7,8 +7,6 @@ The buildpack also includes curator, which allows to manage the indices in Elast
 
 
 
-## Use Cases
-
 
 ## Use Cases
 
@@ -29,6 +27,7 @@ The buildpack is only able to do a connection if exactly one service of the same
 
 > You don't want to use pre-defined templates and you deliver all Logtsash config files in the expected file structure as described later. You are still able to deliver additional plugins and certificates but you are responsible for the service bindings.
 
+When you deliver config files in the "conf.d" folder no pre-defined templates are applied by default. 
 
 #### Example `manual Logstash` file:
 
@@ -49,6 +48,7 @@ curator:
 
 > You want to use only some of pre-defined templates and you deliver also some own Logtsash config files in the expected file structure. Depending of which templates you use you are responsible for the service bindings or not. You are able to deliver additional plugins and certificates.
 
+When you deliver config files in the "conf.d" folder no pre-defined templates are applied by default. If you still want to use some pre-defined templates you have to explicitly define them in the "Logstash" file.
 
 #### Example `mixed Logstash` file with automatic binding:
 
