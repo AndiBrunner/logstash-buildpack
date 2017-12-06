@@ -12,7 +12,7 @@ templates:
   is-default: true
   is-fallback: false
   groks:
-  - cf-grok-patterns
+  - cf-grok-syslog
 - name: cf-output-elasticsearch
   type: output
   is-default: true
