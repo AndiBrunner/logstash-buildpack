@@ -85,8 +85,6 @@ A Logstash Cloud Foundry App has the following structure:
 │   └── curator.yml
 ├── grok-patterns
 │   └── grok-patterns
-├── mappings
-│   └── elasticsearch-template.json
 ├── plugins
 │   └── logstash-output-kafka-7.0.4.gem
 ├── Logstash
@@ -207,12 +205,6 @@ You may provide additional configuration files like grok-patterns or useragent r
 ```
 patterns_dir => "{{ .Env.HOME }}/grok-patterns"
 ```
-
-#### mappings
-
-Optional folder to ship mapping templates for Elasticsearch. These mapping templates could be applied by Logstash. See [logstash-output-elasticsearch](https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html) for details.
-
-
 
 #### plugins
 
