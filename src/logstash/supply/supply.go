@@ -323,12 +323,6 @@ func (gs *Supplier) PrepareAppDirStructure() error {
 		return err
 	}
 
-	//create dir mappings in DepDir
-	dir = filepath.Join(gs.Stager.DepDir(), "mappings")
-	err = os.MkdirAll(dir, 0755)
-	if err != nil {
-		return err
-	}
 
 	//create dir plugins in DepDir
 	dir = filepath.Join(gs.Stager.DepDir(), "plugins")
@@ -838,35 +832,18 @@ func (gs *Supplier) InstallTemplates() error {
 
 	}
 
-	// copy grok-patterns, mappings and plugins
-	var mappingsToInstall map[string]string
+	// copy grok-patterns and plugins
 	var groksToInstall map[string]string
 
-	mappingsToInstall = make(map[string]string)
 	groksToInstall = make(map[string]string)
 
 	for i := 0; i < len(gs.TemplatesToInstall); i++ {
 
-		for m := 0; m < len(gs.TemplatesToInstall[i].Mappings); m++ {
-			mappingsToInstall[gs.TemplatesToInstall[i].Mappings[m]] = ""
-		}
 		for g := 0; g < len(gs.TemplatesToInstall[i].Groks); g++ {
 			groksToInstall[gs.TemplatesToInstall[i].Groks[g]] = ""
 		}
 		for p := 0; p < len(gs.TemplatesToInstall[i].Plugins); p++ {
 			gs.PluginsToInstall[gs.TemplatesToInstall[i].Plugins[p]] = ""
-		}
-	}
-
-	for key, _ := range mappingsToInstall {
-		mappingFile := filepath.Join(gs.BPDir(), "defaults/mappings", key)
-		destFile := filepath.Join(gs.Stager.DepDir(), "mappings", key)
-
-		out, err := exec.Command(fmt.Sprintf("%s/gte", gs.GTE.StagingLocation), "-d", "<<:>>", mappingFile, destFile).CombinedOutput()
-		if err != nil {
-			gs.Log.Error(string(out))
-			gs.Log.Error("Error pre-processing mapping template %s: %s", key, err.Error())
-			return err
 		}
 	}
 

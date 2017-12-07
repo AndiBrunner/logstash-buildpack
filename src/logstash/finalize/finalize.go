@@ -83,7 +83,6 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				echo "--> preparing runtime directories ..."
 				mkdir -p conf.d
 				mkdir -p grok-patterns
-				mkdir -p mappings
 				mkdir -p curator.d
 
 				if [ -d logstash.conf.d ] ; then
@@ -105,9 +104,8 @@ func (gf *Finalizer) CreateStartupEnvironment(tempDir string) error {
 				$GTE_HOME/gte $HOME/conf.d $HOME/logstash.conf.d
 				$GTE_HOME/gte $LS_ROOT/conf.d $HOME/logstash.conf.d
 
-				#no template processing for user mappings and grok-patterns
+				#no template processing for grok-patterns
 
-				$GTE_HOME/gte $LS_ROOT/mappings $HOME/mappings
 				$GTE_HOME/gte $LS_ROOT/grok-patterns $HOME/grok-patterns
 
 				$GTE_HOME/gte $HOME/curator.d $HOME/curator.conf.d

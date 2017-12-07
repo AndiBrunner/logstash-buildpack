@@ -24,12 +24,6 @@ dependencies:
   sha256: f98252002d15aa7547bc8beea4a18f376ac01d1bab4d2ff9da6acbcdc2f21233
   cf_stacks:
   - cflinuxfs2
-- name: logstash
-  version: 6.1.0
-  uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/logstash-6.0.0.tar.gz
-  sha256: f98252002d15aa7547bc8beea4a18f376ac01d1bab4d2ff9da6acbcdc2f21233
-  cf_stacks:
-  - cflinuxfs2
 - name: logstash-plugins
   version: 6.0.0
   uri: https://swisscom-buildpacks.scapp.io/dependencies/elk/logstash-plugins-6.0.0.tar.gz
@@ -82,8 +76,6 @@ include_files:
 - VERSION
 - defaults/curator/actions.yml
 - defaults/curator/curator.yml
-- defaults/grok-patterns/cf-timestamps
-- defaults/mappings/cf-base-template
 - defaults/templates/cf-filter-syslog.conf
 - defaults/templates/cf-input-syslog.conf
 - defaults/templates/cf-output-elasticsearch.conf
